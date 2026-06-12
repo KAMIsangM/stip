@@ -4,15 +4,38 @@ MVP scaffold: Vue 3 + FastAPI + SQLAlchemy (6 tables).
 
 ## Quick start
 
-> **Important:** Run all backend commands from the `backend/` directory. Starting uvicorn from the project root causes `ModuleNotFoundError: No module named 'app'`.
+> **Important:** Run backend commands from the `backend/` directory. Starting uvicorn from the project root causes `ModuleNotFoundError: No module named 'app'`.
 
 ### Backend
 
+**Prerequisites:** [uv](https://docs.astral.sh/uv/) (recommended) or Python 3.12+.
+
+**One-time setup** (from project root):
+
+```bash
+uv venv                          # creates .venv/ at project root (gitignored)
+# Windows
+.venv\Scripts\activate
+# macOS / Linux
+source .venv/bin/activate
+
+cd backend
+uv pip install -r requirements.txt
+alembic upgrade head
+```
+
+**Start server** (with venv activated, cwd = `backend/`):
+
+```bash
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Without activating the venv, use the venv interpreter explicitly:
+
 ```bash
 cd backend
-pip install -r requirements.txt
-alembic upgrade head
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+..\.venv\Scripts\python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000   # Windows
+# ../.venv/bin/python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000    # macOS / Linux
 ```
 
 Verify:
@@ -26,11 +49,12 @@ Course assets (audio, PPTX) are served at `/assets` from `backend/data/courses/`
 
 Set API keys via env vars (see `backend/config.yaml`): `DEEPSEEK_API_KEY`, `ALIYUN_ACCESS_KEY_ID`, etc.
 
-Run repository tests:
+Run repository tests (venv activated, cwd = `backend/`):
 
 ```bash
 cd backend
 pytest tests/ -v
+# or: ..\.venv\Scripts\python -m pytest tests/ -v
 ```
 
 ### Frontend
