@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Lock file (project uses pnpm)
+package-lock.json
+
+# TypeScript / Vite generated
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+
+# Local env
+.env
+.env.*
+*.local
+
+# Test coverage
+coverage/

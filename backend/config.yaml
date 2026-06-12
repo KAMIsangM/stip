@@ -1,0 +1,79 @@
+# SITP MVP default configuration — locked per TECH-001 / plan §6
+# Override secrets via environment variables (see app/core/config.py)
+
+database:
+  driver: sqlite  # sqlite | mysql
+  sqlite:
+    path: ./data/smart_teaching.db
+  mysql:
+    host: localhost
+    port: 3306
+    user: sitp
+    password: ""
+    database: sitp
+
+llm:
+  provider: deepseek  # primary
+  fallback: qwen
+  retry:
+    max_attempts: 3
+    backoff_seconds: [1, 2, 4]
+  deepseek:
+    api_key: ${DEEPSEEK_API_KEY}
+    base_url: https://api.deepseek.com/v1
+    model: deepseek-chat
+  qwen:
+    api_key: ${QWEN_API_KEY}
+    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    model: qwen-plus
+
+tts:
+  provider: edge  # primary: Edge TTS
+  fallback: aliyun
+  edge:
+    voice: zh-CN-XiaoxiaoNeural
+    rate: "+0%"
+  aliyun:
+    api_key: ${ALIYUN_TTS_API_KEY}
+    app_key: ${ALIYUN_TTS_APP_KEY}
+    voice: xiaoyun
+
+asr:
+  provider: aliyun  # primary: 阿里云 ASR
+  fallback: tencent
+  aliyun:
+    access_key_id: ${ALIYUN_ACCESS_KEY_ID}
+    access_key_secret: ${ALIYUN_ACCESS_KEY_SECRET}
+    app_key: ${ALIYUN_ASR_APP_KEY}
+    region: cn-shanghai
+  tencent:
+    secret_id: ${TENCENT_SECRET_ID}
+    secret_key: ${TENCENT_SECRET_KEY}
+    app_id: ${TENCENT_ASR_APP_ID}
+
+graph:
+  storage: mysql_tables  # relation tables, NOT graph DB
+  compute: networkx
+
+storage:
+  assets_root: ./data/courses
+
+realtime:
+  progress: websocket
+  tasks: asyncio_background_tasks
+
+server:
+  host: 0.0.0.0
+  port: 8000
+  cors_origins:
+    - http://localhost:5173
+
+export:
+  pptx: python-pptx
+
+NOT_DOING_MVP:
+  - neo4j
+  - celery
+  - redis
+  - user_auth
+  - image_generation_api
