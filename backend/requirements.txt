@@ -9,3 +9,4 @@ edge-tts>=6.1.12
 networkx>=3.3
 pydantic>=2.7.0
 pydantic-settings>=2.3.0
+pytest>=8.2.0

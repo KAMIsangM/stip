@@ -48,3 +48,12 @@ def get_database_url() -> str:
         path = CONFIG_PATH.parent / path
     path.parent.mkdir(parents=True, exist_ok=True)
     return f"sqlite:///{path.as_posix()}"
+
+
+def get_assets_root() -> Path:
+    """Resolved path for course assets (audio, PPTX, etc.)."""
+    path = Path(get_settings()["storage"]["assets_root"])
+    if not path.is_absolute():
+        path = CONFIG_PATH.parent / path
+    path.mkdir(parents=True, exist_ok=True)
+    return path

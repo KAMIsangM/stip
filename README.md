@@ -4,6 +4,8 @@ MVP scaffold: Vue 3 + FastAPI + SQLAlchemy (6 tables).
 
 ## Quick start
 
+> **Important:** Run all backend commands from the `backend/` directory. Starting uvicorn from the project root causes `ModuleNotFoundError: No module named 'app'`.
+
 ### Backend
 
 ```bash
@@ -13,7 +15,23 @@ alembic upgrade head
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+Verify:
+
+```bash
+curl http://localhost:8000/health
+# {"status":"ok"}
+```
+
+Course assets (audio, PPTX) are served at `/assets` from `backend/data/courses/`.
+
 Set API keys via env vars (see `backend/config.yaml`): `DEEPSEEK_API_KEY`, `ALIYUN_ACCESS_KEY_ID`, etc.
+
+Run repository tests:
+
+```bash
+cd backend
+pytest tests/ -v
+```
 
 ### Frontend
 
