@@ -10,3 +10,5 @@ networkx>=3.3
 pydantic>=2.7.0
 pydantic-settings>=2.3.0
 pytest>=8.2.0
+aiofiles>=24.1.0
+python-multipart>=0.0.9

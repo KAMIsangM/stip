@@ -18,9 +18,11 @@ class CourseStatus(str, enum.Enum):
 
 
 class NodeType(str, enum.Enum):
-    CONCEPT = "concept"
-    SKILL = "skill"
-    MEMORY = "memory"
+    概念 = "概念"
+    技能 = "技能"
+    记忆 = "记忆"
+    实践 = "实践"
+    综合 = "综合"
 
 
 class ModalType(str, enum.Enum):
@@ -28,8 +30,10 @@ class ModalType(str, enum.Enum):
     QUIZ = "quiz"
     PPT = "ppt"
     NARRATION = "narration"
+    AUDIO = "audio"
     MINDMAP = "mindmap"
     INTERACTIVE_HTML = "interactive_html"
+    KNOWLEDGE_GRAPH = "knowledge_graph"
 
 
 class ProgressStatus(str, enum.Enum):

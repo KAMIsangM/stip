@@ -70,9 +70,9 @@ def test_knowledge_repository_nodes_and_edges(db_session):
     course = course_repo.create(title="图谱测试")
 
     node_a = knowledge_repo.create_node(
-        course.id, name="变量", node_type="concept", importance=0.8
+        course.id, name="变量", node_type="概念", importance=0.8
     )
-    node_b = knowledge_repo.create_node(course.id, name="函数", node_type="skill")
+    node_b = knowledge_repo.create_node(course.id, name="函数", node_type="技能")
     edge = knowledge_repo.create_edge(
         course.id, node_a.id, node_b.id, relation_type="prerequisite"
     )

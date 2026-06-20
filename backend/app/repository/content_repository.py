@@ -16,6 +16,8 @@ class ContentRepository:
         modal_type: str,
         content_json: str | None = None,
         file_path: str | None = None,
+        *,
+        auto_commit: bool = True,
     ) -> ContentModule:
         module = ContentModule(
             chapter_id=chapter_id,
@@ -24,8 +26,11 @@ class ContentRepository:
             file_path=file_path,
         )
         self._db.add(module)
-        self._db.commit()
-        self._db.refresh(module)
+        if auto_commit:
+            self._db.commit()
+            self._db.refresh(module)
+        else:
+            self._db.flush()
         return module
 
     def get_by_id(self, content_id: int) -> ContentModule | None:

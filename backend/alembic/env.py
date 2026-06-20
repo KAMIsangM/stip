@@ -7,6 +7,7 @@ from app.core.config import get_database_url
 from app.core.database import Base
 from app.models import (  # noqa: F401 — register models
     Chapter,
+    ChatMessage,
     ContentModule,
     Course,
     GenerationProgress,

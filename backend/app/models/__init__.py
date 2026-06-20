@@ -1,9 +1,30 @@
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+
+# China Standard Time (UTC+8)
+CST = timezone(timedelta(hours=8))
+
+
+def _now_cst() -> datetime:
+    """Return current time in China Standard Time (UTC+8)."""
+    return datetime.now(CST).replace(tzinfo=None)
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), nullable=False)
+    chapter_id: Mapped[int | None] = mapped_column(ForeignKey("chapters.id"), nullable=True)
+    role: Mapped[str] = mapped_column(String(20), nullable=False)  # "user" or "assistant"
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=_now_cst
+    )
 
 
 class Course(Base):
@@ -14,10 +35,10 @@ class Course(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.now()
+        DateTime, nullable=False, default=_now_cst
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.now(), onupdate=func.now()
+        DateTime, nullable=False, default=_now_cst, onupdate=_now_cst
     )
 
     chapters: Mapped[list["Chapter"]] = relationship(back_populates="course")
@@ -60,10 +81,10 @@ class KnowledgeEdge(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), nullable=False)
     source_node_id: Mapped[int] = mapped_column(
-        ForeignKey("knowledge_nodes.id"), nullable=False
+        ForeignKey("knowledge_nodes.id", ondelete="CASCADE"), nullable=False
     )
     target_node_id: Mapped[int] = mapped_column(
-        ForeignKey("knowledge_nodes.id"), nullable=False
+        ForeignKey("knowledge_nodes.id", ondelete="CASCADE"), nullable=False
     )
     relation_type: Mapped[str] = mapped_column(String(20), nullable=False)
 
@@ -94,7 +115,7 @@ class GenerationProgress(Base):
     total_steps: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.now(), onupdate=func.now()
+        DateTime, nullable=False, default=_now_cst, onupdate=_now_cst
     )
 
     course: Mapped["Course"] = relationship(back_populates="generation_progress")

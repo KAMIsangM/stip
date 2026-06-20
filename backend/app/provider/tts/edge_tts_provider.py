@@ -10,7 +10,8 @@ class EdgeTTSProvider(BaseTTSProvider):
 
         cfg = get_settings()["tts"]["edge"]
         voice = config.get("voice", cfg["voice"])
-        communicate = edge_tts.Communicate(text, voice)
+        rate = config.get("rate", "+0%")
+        communicate = edge_tts.Communicate(text, voice, rate=rate)
         chunks: list[bytes] = []
         async for chunk in communicate.stream():
             if chunk["type"] == "audio":

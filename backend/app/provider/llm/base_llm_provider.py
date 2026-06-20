@@ -4,6 +4,6 @@ from abc import ABC, abstractmethod
 class BaseLLMProvider(ABC):
     @abstractmethod
     async def chat_completion(
-        self, prompt: str, response_format: str = "text"
+        self, prompt: str, response_format: str = "text", messages: list[dict] | None = None
     ) -> str:
         raise NotImplementedError

@@ -19,7 +19,7 @@ llm:
     max_attempts: 3
     backoff_seconds: [1, 2, 4]
   deepseek:
-    api_key: ${DEEPSEEK_API_KEY}
+    api_key: "sk-6606ddf4327f4edf8dbb7c8c673e9ffe" #${DEEPSEEK_API_KEY}
     base_url: https://api.deepseek.com/v1
     model: deepseek-chat
   qwen:
