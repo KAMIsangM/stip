@@ -1,48 +1,215 @@
 <template>
   <div class="course-create">
-    <el-card class="create-card">
-      <h1>智能互动教学平台</h1>
-      <p class="hint">输入学习主题，AI 将生成结构化课程大纲</p>
-      <el-input
-        v-model="title"
-        placeholder="例如：Python 数据结构基础"
-        size="large"
-        @keyup.enter="submit"
-      />
+    <el-card class="create-card" shadow="hover">
+      <div class="hero">
+        <h1>智能互动教学平台</h1>
+        <p class="subtitle">基于 AI 多智能体的沉浸式学习体验</p>
+      </div>
+
+      <div class="form-section">
+        <label class="input-label">学习主题</label>
+        <el-input
+          v-model="title"
+          placeholder="输入你想学习的内容，例如：Python 数据结构基础、机器学习入门..."
+          size="large"
+          class="title-input"
+          :disabled="loading"
+          @keyup.enter="submit"
+        >
+          <template #prefix>
+            <span style="color: #909399;">主题</span>
+          </template>
+        </el-input>
+
+        <el-collapse-transition>
+          <div v-if="showAdvanced" class="advanced-section">
+            <label class="input-label">补充描述（可选）</label>
+            <el-input
+              v-model="description"
+              type="textarea"
+              :rows="2"
+              placeholder="描述你的学习目标和背景，帮助 AI 更好地定制课程"
+              :disabled="loading"
+            />
+
+            <label class="input-label" style="margin-top: 12px;">预置知识图谱（可选）</label>
+            <el-select
+              v-model="presetId"
+              placeholder="选择预置知识库"
+              clearable
+              :disabled="loading"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="p in presets"
+                :key="p.id"
+                :label="`${p.name} (${p.node_count} 知识点)`"
+                :value="p.id"
+              />
+            </el-select>
+          </div>
+        </el-collapse-transition>
+
+        <el-button
+          text
+          type="primary"
+          size="small"
+          class="toggle-advanced"
+          @click="showAdvanced = !showAdvanced"
+        >
+          {{ showAdvanced ? '收起 ▲' : '更多选项 ▼' }}
+        </el-button>
+      </div>
+
       <div class="actions">
-        <el-button size="large" @click="title = ''">清空</el-button>
-        <el-button type="primary" size="large" :loading="loading" @click="submit">
-          进入课堂
+        <el-button size="large" :disabled="loading" @click="title = ''; description = ''; presetId = undefined">
+          清空
+        </el-button>
+        <el-button
+          type="primary"
+          size="large"
+          :loading="loading"
+          :disabled="!title.trim()"
+          @click="submit"
+        >
+          {{ loading ? 'AI 正在生成课程大纲...' : '开始学习' }}
         </el-button>
       </div>
     </el-card>
+
+    <!-- Recent courses -->
+    <div v-if="recentCourses.length > 0" class="recent-section">
+      <h3>最近课程</h3>
+      <div class="recent-grid">
+        <el-card
+          v-for="c in recentCourses"
+          :key="c.id"
+          class="recent-card"
+          shadow="hover"
+          @click="router.push({ name: 'course-player', params: { id: c.id } })"
+        >
+          <div class="card-title">{{ c.title }}</div>
+          <div class="card-meta">
+            <el-tag :type="statusTagType(c.status)" size="small">{{ statusLabel(c.status) }}</el-tag>
+            <span class="card-date">{{ formatDate(c.created_at) }}</span>
+          </div>
+        </el-card>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { createCourse } from '@/api/course'
+import { createCourse, listCourses } from '@/api/course'
+import { listPresets } from '@/api/knowledge'
 
 const router = useRouter()
+
+// Form state
 const title = ref('')
+const description = ref('')
+const presetId = ref<number | undefined>(undefined)
+const showAdvanced = ref(false)
 const loading = ref(false)
 
+// Recent courses
+interface RecentCourse {
+  id: number
+  title: string
+  status: string
+  created_at: string | null
+}
+const recentCourses = ref<RecentCourse[]>([])
+
+// Presets
+interface Preset {
+  id: number
+  name: string
+  node_count: number
+}
+const presets = ref<Preset[]>([])
+
+// ---------------------------------------------------------------------------
+// Lifecycle
+// ---------------------------------------------------------------------------
+onMounted(async () => {
+  try {
+    const { data } = await listCourses({ page: 1, page_size: 6 })
+    recentCourses.value = data.list || []
+  } catch {
+    // Silently fail — recent courses are optional
+  }
+  try {
+    const { data } = await listPresets()
+    presets.value = data.presets || []
+  } catch {
+    // Silently fail — presets are optional
+  }
+})
+
+// ---------------------------------------------------------------------------
+// Methods
+// ---------------------------------------------------------------------------
 async function submit() {
-  if (!title.value.trim()) {
+  const trimmed = title.value.trim()
+  if (!trimmed) {
     ElMessage.warning('请输入学习主题')
     return
   }
+
   loading.value = true
   try {
-    const { data } = await createCourse({ title: title.value.trim() })
-    router.push({ name: 'course-player', params: { id: data.course_id || 1 } })
-  } catch {
-    ElMessage.error('创建课程失败')
+    const { data } = await createCourse({
+      title: trimmed,
+      description: description.value.trim() || undefined,
+      preset_id: presetId.value,
+    })
+
+    const courseId = data.course_info?.id
+    if (courseId) {
+      ElMessage.success('课程创建成功！正在跳转...')
+      router.push({ name: 'course-player', params: { id: courseId } })
+    } else {
+      ElMessage.error('创建课程失败：未返回课程 ID')
+    }
+  } catch (err: any) {
+    const msg = err?.response?.data?.detail || '创建课程失败，请检查后端服务是否启动'
+    ElMessage.error(msg)
   } finally {
     loading.value = false
   }
+}
+
+function statusLabel(status: string): string {
+  const map: Record<string, string> = {
+    draft: '草稿',
+    outlined: '已生成大纲',
+    generating: '生成中',
+    ready: '已完成',
+    error: '失败',
+  }
+  return map[status] || status
+}
+
+function statusTagType(status: string): 'info' | 'success' | 'warning' | 'danger' | '' {
+  const map: Record<string, 'info' | 'success' | 'warning' | 'danger' | ''> = {
+    draft: 'info',
+    outlined: 'success',
+    generating: 'warning',
+    ready: 'success',
+    error: 'danger',
+  }
+  return map[status] || 'info'
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return ''
+  // 后端存的是北京时间 naive datetime，isoformat() 如 "2026-06-18T17:03:00"
+  const raw = iso.length >= 16 ? iso.slice(0, 16) : iso
+  return raw.replace('T', ' ')
 }
 </script>
 
@@ -50,22 +217,121 @@ async function submit() {
 .course-create {
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 24px;
+  gap: 32px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e9f0 100%);
 }
+
+.hero {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.hero h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #303133;
+  margin: 0 0 8px;
+}
+
+.subtitle {
+  color: #909399;
+  font-size: 14px;
+  margin: 0;
+}
+
 .create-card {
   width: 100%;
-  max-width: 560px;
+  max-width: 600px;
 }
-.hint {
-  color: #666;
-  margin-bottom: 16px;
+
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
+
+.input-label {
+  font-size: 13px;
+  color: #606266;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.title-input {
+  margin-bottom: 4px;
+}
+
+.advanced-section {
+  margin-top: 8px;
+  padding: 12px;
+  background: #fafafa;
+  border-radius: 8px;
+  border: 1px solid #ebeef5;
+}
+
+.toggle-advanced {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 0;
+  font-size: 13px;
+}
+
 .actions {
-  margin-top: 16px;
+  margin-top: 20px;
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 12px;
+}
+
+/* Recent courses */
+.recent-section {
+  width: 100%;
+  max-width: 600px;
+}
+
+.recent-section h3 {
+  font-size: 16px;
+  color: #606266;
+  margin: 0 0 12px;
+}
+
+.recent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.recent-card {
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.recent-card:hover {
+  transform: translateY(-2px);
+}
+
+.card-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #303133;
+  margin-bottom: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-date {
+  font-size: 12px;
+  color: #c0c4cc;
 }
 </style>
