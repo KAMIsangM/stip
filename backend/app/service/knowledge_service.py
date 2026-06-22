@@ -264,13 +264,29 @@ def list_presets() -> list[dict[str, Any]]:
     return _list_available_presets()
 
 
+def delete_preset(preset_id: int) -> bool:
+    """Delete a preset JSON file by its numeric id.
+
+    Returns True if deleted, False if not found.
+    """
+    preset_path = _PRESETS_DIR / f"preset_{preset_id:03d}.json"
+    if not preset_path.exists():
+        return False
+    preset_path.unlink()
+    return True
+
+
 def get_shortest_path(
     course_id: int,
     source_id: int,
     target_id: int,
     db: Session,
+    weighted: bool = True,
 ) -> list[int] | None:
-    """Find shortest path between two nodes in the course graph."""
+    """Find shortest path between two nodes in the course graph.
+
+    When *weighted* is True, edge types and node importance influence the path.
+    """
     nodes = (
         db.query(KnowledgeNode)
         .filter(KnowledgeNode.course_id == course_id)
@@ -296,7 +312,91 @@ def get_shortest_path(
     ]
 
     g = build_digraph(node_dicts, edge_dicts)
-    return shortest_path(g, source_id, target_id)
+    return shortest_path(g, source_id, target_id, weighted=weighted)
+
+
+def save_as_preset(
+    course_id: int,
+    name: str,
+    description: str,
+    db: Session,
+) -> dict[str, Any]:
+    """Export the current course knowledge graph as a preset JSON file.
+
+    Auto-assigns the next available preset id by scanning the presets directory.
+    Returns metadata about the created preset.
+    """
+    # 1. Load course nodes and edges from DB
+    nodes = (
+        db.query(KnowledgeNode)
+        .filter(KnowledgeNode.course_id == course_id)
+        .all()
+    )
+    edges = (
+        db.query(KnowledgeEdge)
+        .filter(KnowledgeEdge.course_id == course_id)
+        .all()
+    )
+
+    if not nodes:
+        raise ValueError("Course has no knowledge nodes — nothing to save as preset")
+
+    # 2. Build sequential ids (1..N) for the preset file and an id map
+    id_map: dict[int, int] = {}
+    preset_nodes: list[dict[str, Any]] = []
+    for idx, node in enumerate(nodes, start=1):
+        id_map[node.id] = idx
+        preset_nodes.append({
+            "id": idx,
+            "name": node.name,
+            "type": node.type,
+            "importance": node.importance,
+            "description": node.description or "",
+        })
+
+    preset_edges: list[dict[str, Any]] = []
+    for edge in edges:
+        src = id_map.get(edge.source_node_id)
+        tgt = id_map.get(edge.target_node_id)
+        if src is None or tgt is None:
+            continue
+        preset_edges.append({
+            "source_node_id": src,
+            "target_node_id": tgt,
+            "relation_type": edge.relation_type,
+        })
+
+    # 3. Determine next preset id
+    _PRESETS_DIR.mkdir(parents=True, exist_ok=True)
+    existing_ids: set[int] = set()
+    for p in _PRESETS_DIR.glob("preset_*.json"):
+        try:
+            existing_ids.add(int(p.stem.split("_")[1]))
+        except (IndexError, ValueError):
+            continue
+    next_id = 1
+    while next_id in existing_ids:
+        next_id += 1
+
+    # 4. Write preset JSON
+    preset = {
+        "id": next_id,
+        "name": name,
+        "description": description,
+        "nodes": preset_nodes,
+        "edges": preset_edges,
+    }
+    preset_path = _PRESETS_DIR / f"preset_{next_id:03d}.json"
+    with open(preset_path, "w", encoding="utf-8") as f:
+        json.dump(preset, f, ensure_ascii=False, indent=2)
+
+    return {
+        "id": next_id,
+        "name": name,
+        "node_count": len(preset_nodes),
+        "edge_count": len(preset_edges),
+        "file": str(preset_path),
+    }
 
 
 def get_recommendations(

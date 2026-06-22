@@ -92,8 +92,11 @@ def build_visual_data(
         edge_style = _relation_to_style(e.relation_type)
         styled_edges.append(
             {
+                "id": e.id,
                 "source": e.source_node_id,
                 "target": e.target_node_id,
+                "source_node_id": e.source_node_id,
+                "target_node_id": e.target_node_id,
                 "relation_type": e.relation_type,
                 "lineStyle": {
                     "color": edge_style["color"],

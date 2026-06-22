@@ -4,11 +4,23 @@
       <el-button text @click="$router.push('/')">
         ← 返回首页
       </el-button>
-      <div class="header-info">
-        <span class="course-title">{{ courseTitle }}</span>
-        <el-tag v-if="courseStatus" :type="statusTagType(courseStatus)" size="small">
-          {{ statusLabel(courseStatus) }}
-        </el-tag>
+      <div class="header-center">
+        <!-- Inline progress bar when generating -->
+        <div v-if="showContentProgress" class="header-progress">
+          <span class="progress-label">AI 生成中</span>
+          <el-progress
+            :percentage="contentProgressPct"
+            :stroke-width="6"
+            :show-text="false"
+            style="width: 120px"
+          />
+        </div>
+        <div class="header-info">
+          <span class="course-title">{{ courseTitle }}</span>
+          <el-tag v-if="courseStatus" :type="statusTagType(courseStatus)" size="small">
+            {{ statusLabel(courseStatus) }}
+          </el-tag>
+        </div>
       </div>
       <el-button
         v-if="courseStatus === 'outlined'"
@@ -194,7 +206,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import ModalTab from '@/components/course/ModalTab.vue'
@@ -204,7 +216,7 @@ import MindMap from '@/components/knowledge/MindMap.vue'
 import KnowledgeGraph from '@/components/knowledge/KnowledgeGraph.vue'
 import KnowledgeGraphEditor from '@/components/knowledge/KnowledgeGraphEditor.vue'
 import ChatPanel from '@/components/course/ChatPanel.vue'
-import { getCourse, triggerGenerate as triggerGenerateApi } from '@/api/course'
+import { getCourse, triggerGenerate as triggerGenerateApi, getProgress } from '@/api/course'
 import { getChapterContents } from '@/api/content'
 import type { PptSlide } from '@/components/course/PptViewer.vue'
 import type { ScenePlan } from '@/api/course'
@@ -226,9 +238,12 @@ const scenePlan = ref<ScenePlan | null>(null)
 const activeChapter = ref<number | null>(null)
 const activeModal = ref('text')
 const generating = ref(false)
+const showContentProgress = ref(false)
+const contentProgressPct = ref(0)
 const loading = ref(true)
 const contentLoading = ref(false)
 const chatCollapsed = ref(true)
+let progressPollTimer: ReturnType<typeof setInterval> | null = null
 
 function onChatToggle(collapsed: boolean) {
   chatCollapsed.value = collapsed
@@ -407,6 +422,12 @@ async function loadCourse() {
     chapters.value = data.chapters || []
     scenePlan.value = data.scene_plan || null
 
+    // If course is currently generating, show progress component and poll
+    if (courseStatus.value === 'generating') {
+      showContentProgress.value = true
+      startProgressPolling()
+    }
+
     if (chapters.value.length > 0) {
       activeChapter.value = chapters.value[0].id
     }
@@ -433,12 +454,61 @@ async function triggerGenerate() {
     const { data } = await triggerGenerateApi(courseId.value)
     ElMessage.success(data?.message || '内容生成任务已提交')
     courseStatus.value = 'generating'
+    showContentProgress.value = true
+    startProgressPolling()
   } catch (err: any) {
     const msg = err?.response?.data?.detail || '触发生成失败'
     ElMessage.error(msg)
   } finally {
     generating.value = false
   }
+}
+
+/** Poll progress to update header progress bar and detect completion */
+function startProgressPolling() {
+  if (progressPollTimer) return
+  progressPollTimer = setInterval(async () => {
+    try {
+      const { data } = await getProgress(courseId.value)
+      contentProgressPct.value = data.percentage ?? 0
+
+      if (data.status === 'done') {
+        stopProgressPolling()
+        onContentGenerationCompleted()
+      } else if (data.status === 'failed') {
+        stopProgressPolling()
+        onContentGenerationFailed(data.error_message || '未知错误')
+      }
+    } catch {
+      // ignore
+    }
+  }, 2000)
+}
+
+function stopProgressPolling() {
+  if (progressPollTimer) {
+    clearInterval(progressPollTimer)
+    progressPollTimer = null
+  }
+}
+
+/** Called when content generation completes */
+function onContentGenerationCompleted() {
+  stopProgressPolling()
+  showContentProgress.value = false
+  contentProgressPct.value = 100
+  courseStatus.value = 'ready'
+  ElMessage.success('教学内容生成完成！')
+  loadCourse()
+}
+
+/** Called when content generation fails */
+function onContentGenerationFailed(errorMsg: string) {
+  stopProgressPolling()
+  showContentProgress.value = false
+  contentProgressPct.value = 0
+  courseStatus.value = 'error'
+  ElMessage.error(`内容生成失败：${errorMsg}`)
 }
 
 // Watch activeChapter → reload content
@@ -450,6 +520,10 @@ watch(activeChapter, () => {
 
 onMounted(() => {
   loadCourse()
+})
+
+onUnmounted(() => {
+  stopProgressPolling()
 })
 
 // ---------------------------------------------------------------------------
@@ -497,6 +571,27 @@ function statusTagType(status: string): 'info' | 'success' | 'warning' | 'danger
   border-bottom: 1px solid #e4e7ed;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
   z-index: 10;
+}
+
+.header-center {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  justify-content: center;
+}
+
+.header-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.progress-label {
+  font-size: 12px;
+  color: #909399;
+  white-space: nowrap;
 }
 
 .header-info {

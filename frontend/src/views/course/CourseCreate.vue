@@ -47,6 +47,25 @@
                 :value="p.id"
               />
             </el-select>
+
+            <!-- Preset list with delete -->
+            <div v-if="presets.length > 0" class="preset-list">
+              <span class="preset-list-label">已有预设知识图谱：</span>
+              <div v-for="p in presets" :key="'pl-' + p.id" class="preset-item">
+                <span class="preset-item-name">{{ p.name }}</span>
+                <span class="preset-item-meta">{{ p.node_count }} 节点 · {{ p.edge_count }} 边</span>
+                <el-popconfirm
+                  title="确定删除该预设吗？"
+                  confirm-button-text="删除"
+                  cancel-button-text="取消"
+                  @confirm="handleDeletePreset(p.id)"
+                >
+                  <template #reference>
+                    <el-button type="danger" size="small" :icon="DeleteIcon" circle />
+                  </template>
+                </el-popconfirm>
+              </div>
+            </div>
           </div>
         </el-collapse-transition>
 
@@ -93,6 +112,24 @@
             <el-tag :type="statusTagType(c.status)" size="small">{{ statusLabel(c.status) }}</el-tag>
             <span class="card-date">{{ formatDate(c.created_at) }}</span>
           </div>
+          <el-popconfirm
+            title="确定要删除该课程吗？所有相关数据将被永久删除。"
+            confirm-button-text="删除"
+            cancel-button-text="取消"
+            @click.stop
+            @confirm="handleDeleteCourse(c.id)"
+          >
+            <template #reference>
+              <el-button
+                class="card-delete-btn"
+                type="danger"
+                size="small"
+                :icon="DeleteIcon"
+                circle
+                @click.stop
+              />
+            </template>
+          </el-popconfirm>
         </el-card>
       </div>
     </div>
@@ -103,8 +140,9 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { createCourse, listCourses } from '@/api/course'
-import { listPresets } from '@/api/knowledge'
+import { Delete as DeleteIcon } from '@element-plus/icons-vue'
+import { createCourse, listCourses, deleteCourse } from '@/api/course'
+import { listPresets, deletePreset } from '@/api/knowledge'
 
 const router = useRouter()
 
@@ -129,6 +167,7 @@ interface Preset {
   id: number
   name: string
   node_count: number
+  edge_count: number
 }
 const presets = ref<Preset[]>([])
 
@@ -136,12 +175,7 @@ const presets = ref<Preset[]>([])
 // Lifecycle
 // ---------------------------------------------------------------------------
 onMounted(async () => {
-  try {
-    const { data } = await listCourses({ page: 1, page_size: 6 })
-    recentCourses.value = data.list || []
-  } catch {
-    // Silently fail — recent courses are optional
-  }
+  await loadRecentCourses()
   try {
     const { data } = await listPresets()
     presets.value = data.presets || []
@@ -149,6 +183,40 @@ onMounted(async () => {
     // Silently fail — presets are optional
   }
 })
+
+async function loadRecentCourses() {
+  try {
+    const { data } = await listCourses({ page: 1, page_size: 20 })
+    recentCourses.value = data.list || []
+  } catch {
+    // Silently fail — recent courses are optional
+  }
+}
+
+async function handleDeleteCourse(courseId: number) {
+  try {
+    await deleteCourse(courseId)
+    ElMessage.success('课程已删除')
+    recentCourses.value = recentCourses.value.filter(c => c.id !== courseId)
+  } catch (err: any) {
+    const msg = err?.response?.data?.detail || '删除课程失败'
+    ElMessage.error(msg)
+  }
+}
+
+async function handleDeletePreset(id: number) {
+  try {
+    await deletePreset(id)
+    ElMessage.success('预设已删除')
+    presets.value = presets.value.filter(p => p.id !== id)
+    if (presetId.value === id) {
+      presetId.value = undefined
+    }
+  } catch (err: any) {
+    const msg = err?.response?.data?.detail || '删除预设失败'
+    ElMessage.error(msg)
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Methods
@@ -170,7 +238,6 @@ async function submit() {
 
     const courseId = data.course_info?.id
     if (courseId) {
-      ElMessage.success('课程创建成功！正在跳转...')
       router.push({ name: 'course-player', params: { id: courseId } })
     } else {
       ElMessage.error('创建课程失败：未返回课程 ID')
@@ -333,5 +400,62 @@ function formatDate(iso: string | null): string {
 .card-date {
   font-size: 12px;
   color: #c0c4cc;
+}
+
+.recent-card {
+  position: relative;
+}
+
+.card-delete-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+}
+
+.recent-card:hover .card-delete-btn {
+  opacity: 1;
+}
+
+/* Preset list in advanced section */
+.preset-list {
+  margin-top: 10px;
+}
+
+.preset-list-label {
+  font-size: 12px;
+  color: #909399;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.preset-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: #fff;
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  margin-bottom: 4px;
+}
+
+.preset-item-name {
+  font-size: 13px;
+  color: #303133;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preset-item-meta {
+  font-size: 11px;
+  color: #c0c4cc;
+  white-space: nowrap;
 }
 </style>

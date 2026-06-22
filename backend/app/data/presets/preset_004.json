@@ -1,0 +1,245 @@
+{
+  "id": 4,
+  "name": "物理基础课程",
+  "description": "",
+  "nodes": [
+    {
+      "id": 1,
+      "name": "位移与时间",
+      "type": "概念",
+      "importance": 0.9,
+      "description": ""
+    },
+    {
+      "id": 2,
+      "name": "速度与速率",
+      "type": "概念",
+      "importance": 0.8,
+      "description": ""
+    },
+    {
+      "id": 3,
+      "name": "加速度",
+      "type": "概念",
+      "importance": 0.8,
+      "description": ""
+    },
+    {
+      "id": 4,
+      "name": "牛顿第一定律",
+      "type": "概念",
+      "importance": 0.9,
+      "description": ""
+    },
+    {
+      "id": 5,
+      "name": "牛顿第二定律",
+      "type": "概念",
+      "importance": 0.9,
+      "description": ""
+    },
+    {
+      "id": 6,
+      "name": "力的合成与分解",
+      "type": "技能",
+      "importance": 0.7,
+      "description": ""
+    },
+    {
+      "id": 7,
+      "name": "匀变速直线运动",
+      "type": "技能",
+      "importance": 0.8,
+      "description": ""
+    },
+    {
+      "id": 8,
+      "name": "自由落体运动",
+      "type": "实践",
+      "importance": 0.8,
+      "description": ""
+    },
+    {
+      "id": 9,
+      "name": "功与功率",
+      "type": "概念",
+      "importance": 0.8,
+      "description": ""
+    },
+    {
+      "id": 10,
+      "name": "动能",
+      "type": "概念",
+      "importance": 0.7,
+      "description": ""
+    },
+    {
+      "id": 11,
+      "name": "重力势能",
+      "type": "概念",
+      "importance": 0.7,
+      "description": ""
+    },
+    {
+      "id": 12,
+      "name": "机械能守恒定律",
+      "type": "综合",
+      "importance": 0.9,
+      "description": ""
+    },
+    {
+      "id": 13,
+      "name": "电荷与电场",
+      "type": "概念",
+      "importance": 0.9,
+      "description": ""
+    },
+    {
+      "id": 14,
+      "name": "库仑定律",
+      "type": "记忆",
+      "importance": 0.8,
+      "description": ""
+    },
+    {
+      "id": 15,
+      "name": "电势与电势差",
+      "type": "概念",
+      "importance": 0.8,
+      "description": ""
+    },
+    {
+      "id": 16,
+      "name": "电流与电阻",
+      "type": "概念",
+      "importance": 0.8,
+      "description": ""
+    },
+    {
+      "id": 17,
+      "name": "欧姆定律",
+      "type": "记忆",
+      "importance": 0.9,
+      "description": ""
+    },
+    {
+      "id": 18,
+      "name": "电路分析与计算",
+      "type": "实践",
+      "importance": 0.8,
+      "description": ""
+    }
+  ],
+  "edges": [
+    {
+      "source_node_id": 1,
+      "target_node_id": 2,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 2,
+      "target_node_id": 3,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 3,
+      "target_node_id": 4,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 4,
+      "target_node_id": 5,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 5,
+      "target_node_id": 6,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 3,
+      "target_node_id": 7,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 7,
+      "target_node_id": 8,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 5,
+      "target_node_id": 9,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 9,
+      "target_node_id": 10,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 9,
+      "target_node_id": 11,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 10,
+      "target_node_id": 12,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 11,
+      "target_node_id": 12,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 5,
+      "target_node_id": 13,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 13,
+      "target_node_id": 14,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 13,
+      "target_node_id": 15,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 15,
+      "target_node_id": 16,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 16,
+      "target_node_id": 17,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 17,
+      "target_node_id": 18,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 10,
+      "target_node_id": 11,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 12,
+      "target_node_id": 8,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 6,
+      "target_node_id": 18,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 14,
+      "target_node_id": 15,
+      "relation_type": "related"
+    }
+  ]
+}

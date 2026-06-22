@@ -25,6 +25,7 @@ from app.repository.knowledge_repository import KnowledgeRepository
 from app.repository.progress_repository import ProgressRepository
 from app.provider.factory import get_llm_provider
 from app.service import knowledge_service
+from app.service.progress_service import ProgressService
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,13 @@ _SYLLABUS_SYSTEM_PROMPT = """你是一个资深课程设计师。根据用户提
 2. 课程大纲应包含 3-6 个章节，每个章节包含若干小节（知识点）
 3. 每个知识点需要标注类型：概念 / 技能 / 记忆 / 实践 / 综合
 4. 每个知识点需要标注重要程度：0.0-1.0 的浮点数
-5. 知识点之间应体现前驱后继的依赖关系
+5. 知识点之间应体现丰富的关系（不仅仅是前驱后继），包括：
+   - prerequisite（前驱后继）：B 需要先掌握 A 才能学
+   - contains（包含）：大概念包含子概念
+   - causal（因果）：A 是 B 的原因/前提条件
+   - related（关联）：A 和 B 有紧密关联但不构成严格的前驱或包含关系
+6. 【重要】edges 字段是必填的！你必须为至少 40% 的边使用非 prerequisite 的关系类型
+7. 同一章节内的相邻知识点默认用 related，大概念与其子概念用 contains，因果关系用 causal
 
 输出格式示例：
 {
@@ -54,12 +61,21 @@ _SYLLABUS_SYSTEM_PROMPT = """你是一个资深课程设计师。根据用户提
         {"name": "知识点名称", "type": "实践", "importance": 0.8, "prerequisites": ["前置知识点名称"]}
       ]
     }
+  ],
+  "edges": [
+    {"source": "前置知识点名称", "target": "知识点名称", "relation_type": "prerequisite"},
+    {"source": "概念A", "target": "概念B", "relation_type": "contains"},
+    {"source": "原因C", "target": "结果D", "relation_type": "causal"},
+    {"source": "概念E", "target": "概念F", "relation_type": "related"}
   ]
 }
 
 注意：
 - prerequisites 字段中的值必须是同一课程中其他知识点的 name
-- 章节之间知识点可以存在跨章节的前驱关系
+- 【重要】edges 字段是必填的，不是可选的！你必须在 edges 中列出所有关系，包括 prerequisite 类型的关系也要显式列出
+- 所有在 prerequisites 中声明的依赖关系，也必须在 edges 中重复声明（relation_type 为 "prerequisite"）
+- 同时必须在 edges 中补充至少 40% 的非 prerequisite 关系（contains / causal / related）
+- 章节之间知识点可以存在跨章节的关系
 - 确保 JSON 格式完全合法，不要有尾随逗号"""
 
 
@@ -143,10 +159,48 @@ def _validate_syllabus(data: dict[str, Any]) -> dict[str, Any]:
     if not normalized_chapters:
         raise ValueError("Syllabus has no valid chapters with knowledge points")
 
+    # Validate edges if present (LLM may output additional relation types)
+    raw_edges = data.get("edges", [])
+    normalized_edges: list[dict[str, str]] = []
+    valid_relation_types = {"prerequisite", "contains", "causal", "related"}
+    if isinstance(raw_edges, list):
+        for edge in raw_edges:
+            if not isinstance(edge, dict):
+                continue
+            source = edge.get("source", "")
+            target = edge.get("target", "")
+            rt = edge.get("relation_type", "prerequisite")
+            if not source or not target:
+                continue
+            if rt not in valid_relation_types:
+                rt = "prerequisite"
+            normalized_edges.append({
+                "source": source,
+                "target": target,
+                "relation_type": rt,
+            })
+
+    # Log edge diversity from LLM output for diagnostics
+    edge_type_counts: dict[str, int] = {}
+    for e in normalized_edges:
+        rt = e.get("relation_type", "prerequisite")
+        edge_type_counts[rt] = edge_type_counts.get(rt, 0) + 1
+    if normalized_edges:
+        logger.info(
+            "LLM edges parsed: %d total, types=%s",
+            len(normalized_edges), edge_type_counts,
+        )
+    else:
+        logger.warning(
+            "LLM did NOT output 'edges' field — will rely on prerequisites only "
+            "(post-processing will auto-diversify)"
+        )
+
     return {
         "title": str(title),
         "description": str(description),
         "chapters": normalized_chapters,
+        "edges": normalized_edges,
     }
 
 
@@ -306,7 +360,8 @@ class CourseService:
 
         # Step 5: Persist chapters and knowledge graph
         chapters_data = syllabus.get("chapters", [])
-        self._persist_syllabus(course_id, chapters_data)
+        edges_data = syllabus.get("edges", [])
+        self._persist_syllabus(course_id, chapters_data, edges_data)
 
         # Step 6: Build teaching scene plan (F003)
         scene_plan = _build_full_scene_plan(chapters_data)
@@ -521,9 +576,19 @@ class CourseService:
         self,
         course_id: int,
         chapters_data: list[dict[str, Any]],
+        edges_data: list[dict[str, str]] | None = None,
     ) -> None:
-        """Persist chapters and knowledge nodes/edges parsed from syllabus."""
+        """Persist chapters and knowledge nodes/edges parsed from syllabus.
+
+        Deduplication: if a knowledge node with the same name already exists in
+        the database (e.g. from a preset), reuse it instead of creating a duplicate.
+        """
         all_kp_map: dict[str, KnowledgeNode] = {}
+
+        # Pre-populate map with existing nodes from DB (e.g. preset nodes)
+        existing_nodes = self._knowledge_repo.list_nodes_by_course_id(course_id)
+        for node in existing_nodes:
+            all_kp_map[node.name] = node
 
         for ch_data in chapters_data:
             chapter = self._course_repo.create_chapter(
@@ -546,48 +611,224 @@ class CourseService:
                     all_kp_map[name] = node
                 else:
                     node = all_kp_map[name]
+                    # Update type/importance if LLM provides richer data
+                    # (only if the existing node was from a preset with defaults)
+                    if kp_data.get("type") and node.type in ("概念", "concept"):
+                        node.type = kp_data["type"]
+                    if kp_data.get("importance", 0.5) != 0.5 and node.importance == 0.5:
+                        node.importance = kp_data["importance"]
 
                 kp_ids.append(node.id)
 
             chapter.knowledge_node_ids = json.dumps(kp_ids, ensure_ascii=False)
             self._db.flush()
 
-        # Create edges for prerequisite relationships
+        # Track created edges to avoid duplicates
+        created_edges: set[tuple[str, str]] = set()
+
+        def _create_edge_if_new(
+            source_name: str, target_name: str, relation_type: str
+        ) -> None:
+            """Create an edge only if not already created (dedup by source+target)."""
+            edge_key = (source_name, target_name)
+            if edge_key in created_edges:
+                return
+            source_node = all_kp_map.get(source_name)
+            target_node = all_kp_map.get(target_name)
+            if source_node is None or target_node is None:
+                logger.warning(
+                    "Edge node not found: '%s' → '%s' — skipping",
+                    source_name, target_name,
+                )
+                return
+            try:
+                self._knowledge_repo.create_edge(
+                    course_id=course_id,
+                    source_node_id=source_node.id,
+                    target_node_id=target_node.id,
+                    relation_type=relation_type,
+                )
+                created_edges.add(edge_key)
+            except Exception as e:
+                logger.warning(
+                    "Failed to create edge %s → %s: %s",
+                    source_name, target_name, e,
+                )
+
+        # Step 1: Create edges from prerequisites (always "prerequisite" type)
         for ch_data in chapters_data:
             for kp_data in ch_data.get("knowledge_points", []):
                 name = kp_data["name"]
-                node = all_kp_map.get(name)
-                if node is None:
-                    continue
-
                 for prereq_name in kp_data.get("prerequisites", []):
-                    prereq_node = all_kp_map.get(prereq_name)
-                    if prereq_node is None:
-                        logger.warning(
-                            "Prerequisite '%s' not found for '%s' — skipping edge",
-                            prereq_name, name,
-                        )
-                        continue
+                    _create_edge_if_new(prereq_name, name, "prerequisite")
 
-                    try:
-                        self._knowledge_repo.create_edge(
-                            course_id=course_id,
-                            source_node_id=prereq_node.id,
-                            target_node_id=node.id,
-                            relation_type="prerequisite",
-                        )
-                    except Exception as e:
-                        logger.warning(
-                            "Failed to create edge %s → %s: %s",
-                            prereq_name, name, e,
-                        )
+        # Step 2: Create edges from LLM-generated edges (may have other relation types)
+        if edges_data:
+            for edge in edges_data:
+                source = edge.get("source", "")
+                target = edge.get("target", "")
+                rt = edge.get("relation_type", "prerequisite")
+                if source and target:
+                    _create_edge_if_new(source, target, rt)
+
+        # Step 3: Post-process — if all edges are "prerequisite", auto-diversify
+        # using heuristic rules so the knowledge graph isn't flat.
+        self._diversify_edge_types(
+            course_id, chapters_data, all_kp_map, created_edges
+        )
 
         self._db.commit()
         logger.info(
-            "Syllabus persisted: %d chapters, %d knowledge nodes",
+            "Syllabus persisted: %d chapters, %d knowledge nodes, %d edges",
             len(chapters_data),
             len(all_kp_map),
+            len(created_edges),
         )
+
+    # -------------------------------------------------------------------
+    # Heuristic edge-type diversification (fallback when LLM produces
+    # only prerequisite edges or no edges at all)
+    # -------------------------------------------------------------------
+    def _diversify_edge_types(
+        self,
+        course_id: int,
+        chapters_data: list[dict[str, Any]],
+        all_kp_map: dict[str, KnowledgeNode],
+        created_edges: set[tuple[str, str]],
+    ) -> None:
+        """Auto-diversify relation types when LLM output lacks variety.
+
+        Heuristics (applied in order, only to existing prerequisite edges):
+        1. contains: source name is a broader concept of target name
+           (e.g. "机器学习" → "监督学习", "数据结构" → "二叉树")
+        2. causal: source name contains 原因/背景/动机/问题,
+           or target name contains 结果/影响/效果/应用
+        3. related: same-chapter adjacent knowledge points (default fallback)
+        """
+        # Build chapter → knowledge_point_names mapping
+        chapter_kp_names: list[list[str]] = []
+        for ch_data in chapters_data:
+            names = [
+                kp["name"] for kp in ch_data.get("knowledge_points", [])
+            ]
+            chapter_kp_names.append(names)
+
+        # Build kp_name → chapter_index mapping
+        kp_chapter: dict[str, int] = {}
+        for ci, names in enumerate(chapter_kp_names):
+            for name in names:
+                kp_chapter[name] = ci
+
+        # Count current relation types
+        from sqlalchemy import text
+        rows = self._db.execute(
+            text(
+                "SELECT relation_type, source_node_id, target_node_id "
+                "FROM knowledge_edges WHERE course_id = :cid"
+            ),
+            {"cid": course_id},
+        ).fetchall()
+
+        edge_map: dict[tuple[int, int], str] = {}
+        for row in rows:
+            edge_map[(row[1], row[2])] = row[0]
+
+        # If we already have non-prerequisite edges, skip diversification
+        non_pre_count = sum(
+            1 for rt in edge_map.values() if rt != "prerequisite"
+        )
+        total_edges = len(edge_map)
+        if total_edges > 0 and non_pre_count / total_edges >= 0.2:
+            logger.info(
+                "Edge types already diverse (%d/%d non-prerequisite), skipping auto-diversify",
+                non_pre_count, total_edges,
+            )
+            return
+
+        logger.info(
+            "Edge types need diversification: %d/%d non-prerequisite. "
+            "Applying heuristic rules...",
+            non_pre_count, total_edges,
+        )
+
+        # Build id→name and name→id maps for quick lookup
+        id_to_name: dict[int, str] = {}
+        name_to_id: dict[str, int] = {}
+        for name, node in all_kp_map.items():
+            id_to_name[node.id] = name
+            name_to_id[name] = node.id
+
+        # Collect all existing edges for re-typing
+        edges_to_update: list[tuple[int, int, str]] = []
+        processed: set[tuple[int, int]] = set()
+
+        # Rule 1: contains — source is broader concept of target
+        for (src_id, tgt_id), rt in edge_map.items():
+            if rt != "prerequisite" or (src_id, tgt_id) in processed:
+                continue
+            src_name = id_to_name.get(src_id, "")
+            tgt_name = id_to_name.get(tgt_id, "")
+            if not src_name or not tgt_name:
+                continue
+            # Heuristic: source name is a substring or shorter broader term
+            # that the target is a specific instance of
+            if _is_contains_relation(src_name, tgt_name):
+                edges_to_update.append((src_id, tgt_id, "contains"))
+                processed.add((src_id, tgt_id))
+
+        # Rule 2: causal — source is cause/motivation, target is effect/result
+        for (src_id, tgt_id), rt in edge_map.items():
+            if rt != "prerequisite" or (src_id, tgt_id) in processed:
+                continue
+            src_name = id_to_name.get(src_id, "")
+            tgt_name = id_to_name.get(tgt_id, "")
+            if not src_name or not tgt_name:
+                continue
+            if _is_causal_relation(src_name, tgt_name):
+                edges_to_update.append((src_id, tgt_id, "causal"))
+                processed.add((src_id, tgt_id))
+
+        # Rule 3: related — same-chapter adjacent knowledge points
+        for (src_id, tgt_id), rt in edge_map.items():
+            if rt != "prerequisite" or (src_id, tgt_id) in processed:
+                continue
+            src_name = id_to_name.get(src_id, "")
+            tgt_name = id_to_name.get(tgt_id, "")
+            if not src_name or not tgt_name:
+                continue
+            src_ch = kp_chapter.get(src_name, -1)
+            tgt_ch = kp_chapter.get(tgt_name, -1)
+            if src_ch == tgt_ch and src_ch >= 0:
+                edges_to_update.append((src_id, tgt_id, "related"))
+                processed.add((src_id, tgt_id))
+
+        # Apply updates
+        if edges_to_update:
+            for src_id, tgt_id, new_rt in edges_to_update:
+                self._db.execute(
+                    text(
+                        "UPDATE knowledge_edges SET relation_type = :rt "
+                        "WHERE course_id = :cid AND source_node_id = :sid "
+                        "AND target_node_id = :tid"
+                    ),
+                    {
+                        "rt": new_rt,
+                        "cid": course_id,
+                        "sid": src_id,
+                        "tid": tgt_id,
+                    },
+                )
+            self._db.flush()
+            logger.info(
+                "Auto-diversified %d edges: %s",
+                len(edges_to_update),
+                ", ".join(
+                    f"{id_to_name.get(s,'?')}→{id_to_name.get(t,'?')}={rt}"
+                    for s, t, rt in edges_to_update[:10]
+                ),
+            )
+        else:
+            logger.info("No edges eligible for auto-diversification")
 
     # -----------------------------------------------------------------------
     # Internal: fallback syllabus when LLM fails
@@ -647,4 +888,70 @@ class CourseService:
                     ],
                 },
             ],
+            "edges": [
+                {"source": f"{topic} 基本概念", "target": f"{topic} 核心原理", "relation_type": "prerequisite"},
+                {"source": f"{topic} 核心原理", "target": f"{topic} 实践应用", "relation_type": "prerequisite"},
+                {"source": f"{topic} 实践应用", "target": f"{topic} 综合案例", "relation_type": "related"},
+            ],
         }
+
+
+# ===========================================================================
+# Heuristic helpers for edge-type diversification
+# ===========================================================================
+_CONTAINS_KEYWORDS = [
+    ("机器学习", "监督学习"), ("机器学习", "无监督学习"),
+    ("机器学习", "深度学习"), ("数据结构", "二叉树"),
+    ("数据结构", "链表"), ("数据结构", "栈"),
+    ("数据结构", "队列"), ("算法", "排序"),
+    ("算法", "搜索"), ("网络", "TCP"),
+    ("网络", "HTTP"), ("数据库", "SQL"),
+    ("数据库", "索引"), ("操作系统", "进程"),
+    ("操作系统", "线程"), ("编程语言", "面向对象"),
+    ("面向对象", "封装"), ("面向对象", "继承"),
+    ("面向对象", "多态"),
+]
+
+
+def _is_contains_relation(src_name: str, tgt_name: str) -> bool:
+    """Check if src is a broader concept that contains tgt."""
+    # 1. Exact keyword match from known hierarchies
+    for broad, narrow in _CONTAINS_KEYWORDS:
+        if broad in src_name and narrow in tgt_name:
+            return True
+
+    # 2. tgt name is longer and contains src name as substring
+    #    e.g. "测试" contains "单元测试", "继承" contains "多重继承"
+    if len(tgt_name) > len(src_name) and src_name in tgt_name:
+        return True
+
+    # 3. src name ends with 基础/原理/概念 and tgt is more specific
+    for suffix in ("基础", "原理", "概念", "概述", "体系"):
+        if src_name.endswith(suffix):
+            base = src_name[: -len(suffix)]
+            if base and base in tgt_name:
+                return True
+
+    return False
+
+
+_CAUSAL_SOURCE_PATTERNS = ("原因", "背景", "动机", "问题", "挑战", "需求", "痛点", "瓶颈")
+_CAUSAL_TARGET_PATTERNS = ("结果", "影响", "效果", "应用", "实践", "案例", "解决方案", "对策", "优化")
+
+
+def _is_causal_relation(src_name: str, tgt_name: str) -> bool:
+    """Check if src→tgt is a causal relationship."""
+    src_lower = src_name.lower()
+    tgt_lower = tgt_name.lower()
+
+    # Source has cause/motivation keywords
+    for kw in _CAUSAL_SOURCE_PATTERNS:
+        if kw in src_lower:
+            return True
+
+    # Target has effect/result keywords
+    for kw in _CAUSAL_TARGET_PATTERNS:
+        if kw in tgt_lower:
+            return True
+
+    return False

@@ -11,11 +11,13 @@ from app.models import KnowledgeEdge, KnowledgeNode
 from app.models.enums import NodeType, RelationType
 from app.service.knowledge_service import (
     build_from_preset,
+    delete_preset,
     get_graph_for_visualization,
     get_recommendations,
     get_shortest_path,
     get_sorted_nodes,
     list_presets,
+    save_as_preset,
 )
 from app.utils.graph_engine import GraphCycleError
 
@@ -54,6 +56,11 @@ class PresetApplyRequest(BaseModel):
     preset_id: int
 
 
+class PresetSaveRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    description: str | None = None
+
+
 # ---------------------------------------------------------------------------
 # knowledge-graph read
 # ---------------------------------------------------------------------------
@@ -85,10 +92,15 @@ def find_shortest_path(
     course_id: int,
     source: int = Query(...),
     target: int = Query(...),
+    weighted: bool = Query(default=True),
     db: Session = Depends(get_db),
 ):
-    """Find shortest path between two knowledge nodes."""
-    path = get_shortest_path(course_id, source, target, db)
+    """Find shortest path between two knowledge nodes.
+
+    Set *weighted* to False for plain BFS; True (default) enables
+    edge-type weights and node-importance bias.
+    """
+    path = get_shortest_path(course_id, source, target, db, weighted=weighted)
     if path is None:
         return {"path": None, "message": "No path found between the nodes"}
     return {"path": path}
@@ -116,6 +128,19 @@ def get_presets():
     return {"presets": list_presets()}
 
 
+@router.delete("/knowledge-graph/presets/{preset_id}", status_code=204)
+def delete_preset_endpoint(preset_id: int):
+    """Delete a preset knowledge graph JSON file."""
+    try:
+        success = delete_preset(preset_id)
+        if not success:
+            raise HTTPException(status_code=404, detail=f"预设 {preset_id} 不存在")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除预设失败: {str(e)}")
+
+
 @router.post("/courses/{course_id}/knowledge-graph/apply-preset")
 def apply_preset(
     course_id: int,
@@ -133,6 +158,28 @@ def apply_preset(
         }
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.post("/knowledge-graph/save-preset", status_code=201)
+def save_preset(
+    course_id: int,
+    body: PresetSaveRequest,
+    db: Session = Depends(get_db),
+):
+    """Save the current course knowledge graph as a new preset."""
+    try:
+        result = save_as_preset(
+            course_id=course_id,
+            name=body.name,
+            description=body.description or "",
+            db=db,
+        )
+        return {
+            "message": "Preset saved successfully",
+            "preset": result,
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 # ---------------------------------------------------------------------------

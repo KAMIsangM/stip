@@ -3,6 +3,7 @@
 POST   /api/v1/courses                    — Create course + generate syllabus
 GET    /api/v1/courses                    — List courses (paginated, filterable)
 GET    /api/v1/courses/{course_id}        — Get course detail
+DELETE /api/v1/courses/{course_id}        — Delete course + all related data
 POST   /api/v1/courses/{course_id}/generate — Trigger multi-modal content generation (F002)
 """
 
@@ -70,7 +71,7 @@ async def create_course(
     body: CourseCreateRequest,
     db: Session = Depends(get_db),
 ):
-    """Create a new course and auto-generate syllabus via LLM.
+    """Create a new course and generate syllabus via LLM (synchronous).
 
     The syllabus includes chapters, knowledge points with types/importance,
     and prerequisite relationships. If preset_id is provided, the preset
@@ -146,6 +147,32 @@ async def get_course(
     except Exception as e:
         logger.exception("Failed to get course detail")
         raise HTTPException(status_code=500, detail=f"查询课程详情失败: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/v1/courses/{course_id} — Delete course
+# ---------------------------------------------------------------------------
+
+@router.delete("/courses/{course_id}", status_code=204)
+def delete_course(
+    course_id: int,
+    db: Session = Depends(get_db),
+):
+    """Delete a course and all its related data (chapters, knowledge nodes/edges,
+    content modules, progress records).
+
+    This is a cascading delete — everything tied to this course will be removed.
+    """
+    try:
+        repo = CourseRepository(db)
+        success = repo.delete(course_id)
+        if not success:
+            raise HTTPException(status_code=404, detail=f"课程 {course_id} 不存在")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to delete course")
+        raise HTTPException(status_code=500, detail=f"删除课程失败: {str(e)}")
 
 
 # ---------------------------------------------------------------------------

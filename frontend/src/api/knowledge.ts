@@ -34,6 +34,21 @@ export function applyPreset(courseId: number, presetId: number) {
   })
 }
 
+export function deletePreset(presetId: number) {
+  return http.delete(`/knowledge-graph/presets/${presetId}`)
+}
+
+export interface PresetSavePayload {
+  name: string
+  description?: string
+}
+
+export function saveAsPreset(courseId: number, payload: PresetSavePayload) {
+  return http.post('/knowledge-graph/save-preset', payload, {
+    params: { course_id: courseId },
+  })
+}
+
 // ── node CRUD ──
 
 export interface NodeCreatePayload {

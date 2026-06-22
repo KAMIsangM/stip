@@ -117,3 +117,8 @@ export function triggerGenerate(courseId: number) {
 export function getProgress(courseId: number) {
   return http.get<ProgressInfo>(`/courses/${courseId}/progress`)
 }
+
+/** Delete a course and all its related data */
+export function deleteCourse(courseId: number) {
+  return http.delete(`/courses/${courseId}`)
+}

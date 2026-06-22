@@ -32,8 +32,8 @@ const emit = defineEmits<{
 // State
 const currentStep = ref(0)
 const totalSteps = ref(0)
-const status = ref('pending')
-const stepName = ref('等待开始')
+const status = ref('loading')
+const stepName = ref('正在连接…')
 const errorMessage = ref<string | null>(null)
 const visible = ref(true)
 
@@ -47,12 +47,16 @@ const percentage = computed(() =>
   totalSteps.value > 0 ? Math.round((currentStep.value / totalSteps.value) * 100) : 0
 )
 
-const stepLabel = computed(() =>
-  `${stepName.value} (${currentStep.value}/${totalSteps.value})`
-)
+const stepLabel = computed(() => {
+  if (totalSteps.value > 0) {
+    return `${stepName.value} (${currentStep.value}/${totalSteps.value})`
+  }
+  return stepName.value
+})
 
 const tagType = computed(() => {
   const map: Record<string, string> = {
+    loading: 'info',
     pending: 'info',
     outline_generating: 'warning',
     content_generating: 'warning',
@@ -65,6 +69,7 @@ const tagType = computed(() => {
 
 const statusLabel = computed(() => {
   const map: Record<string, string> = {
+    loading: '连接中…',
     pending: '等待中',
     outline_generating: '大纲生成中',
     content_generating: '内容生成中',
@@ -85,6 +90,41 @@ const progressColor = computed(() => {
   if (status.value === 'failed') return '#f56c6c'
   return undefined // default blue
 })
+
+// ---------------------------------------------------------------------------
+// HTTP polling
+// ---------------------------------------------------------------------------
+function startPolling() {
+  if (pollTimer) return
+  pollTimer = setInterval(pollProgress, 2000)
+}
+
+async function pollProgress() {
+  try {
+    const { data } = await http.get(`/courses/${props.courseId}/progress`)
+    updateFromData(data)
+
+    if (data.status === 'done') {
+      stopPolling()
+      emit('completed')
+      if (props.autoHide !== false) {
+        setTimeout(() => { visible.value = false }, 3000)
+      }
+    } else if (data.status === 'failed') {
+      stopPolling()
+      emit('failed', data.error_message || '未知错误')
+    }
+  } catch {
+    // Silently retry
+  }
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
 
 // ---------------------------------------------------------------------------
 // WebSocket connection
@@ -137,6 +177,7 @@ function connectWebSocket() {
     console.warn('[Progress] WebSocket not supported, using polling')
     useWebSocket.value = false
     startPolling()
+    pollProgress() // immediate first poll via HTTP
   }
 }
 
@@ -147,42 +188,7 @@ function fallbackToPolling() {
     ws = null
   }
   startPolling()
-}
-
-// ---------------------------------------------------------------------------
-// HTTP polling fallback
-// ---------------------------------------------------------------------------
-function startPolling() {
-  if (pollTimer) return
-  pollTimer = setInterval(pollProgress, 2000)
-  pollProgress() // immediate first poll
-}
-
-async function pollProgress() {
-  try {
-    const { data } = await http.get(`/courses/${props.courseId}/progress`)
-    updateFromData(data)
-
-    if (data.status === 'done') {
-      stopPolling()
-      emit('completed')
-      if (props.autoHide !== false) {
-        setTimeout(() => { visible.value = false }, 3000)
-      }
-    } else if (data.status === 'failed') {
-      stopPolling()
-      emit('failed', data.error_message || '未知错误')
-    }
-  } catch {
-    // Silently retry
-  }
-}
-
-function stopPolling() {
-  if (pollTimer) {
-    clearInterval(pollTimer)
-    pollTimer = null
-  }
+  pollProgress() // immediate poll on fallback
 }
 
 // ---------------------------------------------------------------------------
@@ -197,9 +203,12 @@ function updateFromData(data: any) {
 }
 
 // ---------------------------------------------------------------------------
-// Lifecycle
+// Lifecycle — start with HTTP poll first, then try WebSocket
 // ---------------------------------------------------------------------------
 onMounted(() => {
+  // Immediately poll to get initial progress (don't wait for WebSocket)
+  pollProgress()
+  // Also try WebSocket for real-time updates
   connectWebSocket()
 })
 

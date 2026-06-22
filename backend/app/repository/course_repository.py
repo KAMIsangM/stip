@@ -62,6 +62,8 @@ class CourseRepository:
         course = self.get_by_id(course_id)
         if course is None:
             return False
+        # 手动级联删除子记录，避免外键约束问题
+        self.delete_chapters_by_course_id(course_id)
         self._db.delete(course)
         self._db.commit()
         return True

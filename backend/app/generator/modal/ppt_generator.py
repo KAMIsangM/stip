@@ -37,22 +37,55 @@ _FONT_FAMILY = "Microsoft YaHei"  # 微软雅黑
 _SLIDE_W = Inches(13.333)
 _SLIDE_H = Inches(7.5)
 
-_PPT_SYSTEM = """你是一个PPT课件设计师。根据提供的章节信息，生成一套PPT课件内容。
+_PPT_SYSTEM = """你是一位资深教学设计专家和PPT课件设计师，擅长制作高质量的教学幻灯片。你的任务是根据提供的章节信息和知识点，生成一套内容详实、教学逻辑严谨的PPT课件。
 
-要求：
-1. 输出必须是严格的 JSON 格式
-2. 课件应包含 4-8 张幻灯片
-3. 每张幻灯片包含标题、要点列表和讲解备注
-4. 幻灯片应按逻辑顺序排列，由浅入深
+## 核心设计原则
 
-输出格式：
+1. **输出必须是严格的 JSON 格式**，不可包含任何解释性文字
+2. **幻灯片数量**：根据知识点数量和复杂度灵活调整，通常 5-10 张（知识点多的章节应更多）
+3. **教学逻辑顺序**：引入热身 → 概念讲解 → 深入分析 → 案例/应用 → 互动/检验 → 总结回顾
+4. **知识点全覆盖**：必须覆盖所有提供的知识点，不能遗漏任何重要知识点
+5. **内容要有教学深度**：不能只是标题式罗列，要有具体的解释、例证、对比和延伸
+
+## 每张幻灯片的详细要求
+
+### title（标题）
+- 简洁有力，通常 4-15 字
+- 准确概括本页核心主题
+- 各页标题之间逻辑递进
+
+### bullets（要点列表）
+- 每个要点必须是一句**完整的、有信息量的话**（15-50字），不能只是短语或标签
+- 要点之间逻辑递进，由浅入深
+- 要点应包含：概念定义、核心原理、公式或规则、实际例证、注意事项等
+- 每页 3-5 个要点
+- 严禁要点内容空洞，如"本节将介绍XX"这种无实质内容的句子
+- 对于重要知识点，要点中应包含具体数值、公式、案例等可操作信息
+
+### notes（讲解备注，用于语音旁白生成）
+- 是一段**流畅完整的讲稿**（150-300字），适合真人朗读
+- 对 bullets 中的每个要点进行深入展开和讲解
+- 使用"我们""大家""同学们"等亲切称呼，增强课堂代入感
+- 自然融入"例如""需要注意的是""思考一下"等教学引导语
+- 适当加入设问、停顿提示（如"这里请大家思考一下"）
+- 语言风格：专业但不生硬，亲切但不随意
+
+## 知识点覆盖要求
+
+1. 必须覆盖上下文中提供的**所有知识点**
+2. 重要知识点（importance ≥ 0.8）应分配独立幻灯片或更多篇幅
+3. 不同知识点之间应有自然过渡和逻辑衔接
+4. 如果知识点之间存在前驱后继关系，应体现教学顺序
+
+## 输出格式
+
 {
-  "title": "课件标题",
+  "title": "课件标题（通常是章节标题或更生动的变体）",
   "slides": [
     {
       "title": "幻灯片标题",
-      "bullets": ["要点1", "要点2", "要点3"],
-      "notes": "讲解备注（用于旁白生成）"
+      "bullets": ["包含具体内容的完整句子1", "包含具体内容的完整句子2", "包含具体内容的完整句子3"],
+      "notes": "这是一段完整的讲稿，对以上要点进行详细展开和讲解，适合语音朗读..."
     }
   ]
 }"""
@@ -66,13 +99,43 @@ class PPTGenerator(BaseModalGenerator):
     async def generate(self, chapter_id: int, context: dict[str, Any]) -> dict[str, Any]:
         chapter_title = context.get("chapter_title", "未命名章节")
         kps = context.get("knowledge_points", [])
-        kp_names = [kp.get("name", "") for kp in kps]
 
-        user = f"""章节标题：{chapter_title}
-知识点：{", ".join(kp_names) if kp_names else "无特定知识点"}
-课程标题：{context.get("course_title", "")}
+        # Build detailed knowledge point info for richer context
+        kp_lines: list[str] = []
+        for i, kp in enumerate(kps, 1):
+            name = kp.get("name", "")
+            kp_type = kp.get("type", "")
+            importance = kp.get("importance", "")
+            prerequisites = kp.get("prerequisites", [])
+            extra = []
+            if kp_type:
+                extra.append(f"类型：{kp_type}")
+            if importance != "":
+                extra.append(f"重要性：{importance}")
+            if prerequisites:
+                extra.append(f"前置知识：{', '.join(prerequisites)}")
+            suffix = f"（{'；'.join(extra)}）" if extra else ""
+            kp_lines.append(f"{i}. {name}{suffix}")
+        kp_text = "\n".join(kp_lines) if kp_lines else "无特定知识点"
 
-请生成 PPT 课件内容。"""
+        course_desc = context.get("course_description", "")
+        desc_line = f"\n课程简介：{course_desc}" if course_desc else ""
+
+        user = f"""## 课程信息
+课程标题：{context.get("course_title", "")}{desc_line}
+
+## 本章信息
+章节标题：{chapter_title}
+
+## 本章知识点（请全部覆盖）
+{kp_text}
+
+## 任务要求
+请根据以上信息，生成一套教学PPT课件。要求：
+1. 覆盖所有知识点，重要知识点给予更多篇幅
+2. 幻灯片之间逻辑递进，有明确的教学主线
+3. 每个要点都要有实质内容，不要空洞的占位文字
+4. notes 备注要写成可直接朗读的讲稿"""
 
         try:
             raw = await self._call_llm(_PPT_SYSTEM, user)
@@ -484,24 +547,51 @@ class PPTGenerator(BaseModalGenerator):
         return urls
 
     def _fallback_content(self, chapter_title: str, kps: list[dict[str, Any]]) -> dict[str, Any]:
-        kp_bullets = [kp.get("name", "") for kp in kps[:5]]
+        kp_names = [kp.get("name", "") for kp in kps]
+        kp_types = {kp.get("name", ""): kp.get("type", "概念") for kp in kps}
+
+        slides: list[dict[str, Any]] = []
+
+        # Slide 1: Chapter overview
+        slides.append({
+            "title": f"{chapter_title} - 概述",
+            "bullets": [
+                f"本章主题：{chapter_title}",
+                f"本章将涵盖 {len(kps)} 个核心知识点",
+                f"学习目标：理解并掌握 {', '.join(kp_names[:3])}{'等' if len(kp_names) > 3 else ''} 核心概念",
+            ],
+            "notes": f"大家好！欢迎来到{chapter_title}的学习。本章我们将系统学习{', '.join(kp_names[:3])}等重要知识点。通过本章的学习，你将建立起完整的知识框架，并能将其应用到实际问题中。",
+        })
+
+        # Slide 2-N: Distribute knowledge points across slides (max 3 KPs per slide)
+        kps_per_slide = 3
+        for start in range(0, len(kp_names), kps_per_slide):
+            chunk = kp_names[start:start + kps_per_slide]
+            if not chunk:
+                continue
+            kp_items = []
+            for name in chunk:
+                kp_type = kp_types.get(name, "概念")
+                kp_items.append(f"{name}（{kp_type}）：理解其核心定义、原理和应用场景")
+            slides.append({
+                "title": "核心知识点" if start == 0 else "知识拓展",
+                "bullets": kp_items,
+                "notes": f"接下来我们重点学习{'、'.join(chunk)}。{'对于每个知识点，我们不仅要理解概念定义，更要掌握其背后的原理和实际应用方法。' if len(chunk) > 1 else '让我们深入探讨这个知识点的核心内容。'}请同学们注意做好笔记。",
+            })
+
+        # Slide last: Summary
+        slides.append({
+            "title": "本章总结",
+            "bullets": [
+                f"回顾本章核心：{', '.join(kp_names[:3])}{'等' if len(kp_names) > 3 else ''}",
+                "梳理知识体系，建立知识点之间的联系",
+                "完成章节练习，检验学习效果",
+                "思考：如何将本章知识应用到实际问题中？",
+            ],
+            "notes": f"好的，以上就是{chapter_title}的全部内容。我们学习了{', '.join(kp_names[:3])}等核心知识点。建议同学们课后整理笔记，建立自己的知识框架，并通过练习题来检验掌握程度。有任何疑问欢迎随时提问，我们下次课再见！",
+        })
+
         return {
             "title": chapter_title,
-            "slides": [
-                {
-                    "title": f"{chapter_title} - 概述",
-                    "bullets": [f"本章主题：{chapter_title}"] + kp_bullets[:3],
-                    "notes": f"欢迎学习{chapter_title}。本章将介绍{', '.join(kp_bullets[:3])}等内容。",
-                },
-                {
-                    "title": "核心知识点",
-                    "bullets": kp_bullets if kp_bullets else ["请参照课程大纲学习"],
-                    "notes": "请重点关注以上知识点，理解其概念和应用。",
-                },
-                {
-                    "title": "本章总结",
-                    "bullets": ["回顾本章重点", "掌握核心概念", "完成章节测验"],
-                    "notes": "本章内容学习完毕，请完成测验检验学习效果。",
-                },
-            ],
+            "slides": slides,
         }

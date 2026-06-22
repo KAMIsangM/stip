@@ -41,11 +41,17 @@ class Course(Base):
         DateTime, nullable=False, default=_now_cst, onupdate=_now_cst
     )
 
-    chapters: Mapped[list["Chapter"]] = relationship(back_populates="course")
-    knowledge_nodes: Mapped[list["KnowledgeNode"]] = relationship(back_populates="course")
-    knowledge_edges: Mapped[list["KnowledgeEdge"]] = relationship(back_populates="course")
+    chapters: Mapped[list["Chapter"]] = relationship(
+        back_populates="course", cascade="all, delete-orphan"
+    )
+    knowledge_nodes: Mapped[list["KnowledgeNode"]] = relationship(
+        back_populates="course", cascade="all, delete-orphan"
+    )
+    knowledge_edges: Mapped[list["KnowledgeEdge"]] = relationship(
+        back_populates="course", cascade="all, delete-orphan"
+    )
     generation_progress: Mapped["GenerationProgress | None"] = relationship(
-        back_populates="course", uselist=False
+        back_populates="course", uselist=False, cascade="all, delete-orphan"
     )
 
 
@@ -53,20 +59,26 @@ class Chapter(Base):
     __tablename__ = "chapters"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), nullable=False)
+    course_id: Mapped[int] = mapped_column(
+        ForeignKey("courses.id", ondelete="CASCADE"), nullable=False
+    )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     order: Mapped[int] = mapped_column(Integer, nullable=False)
     knowledge_node_ids: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     course: Mapped["Course"] = relationship(back_populates="chapters")
-    content_modules: Mapped[list["ContentModule"]] = relationship(back_populates="chapter")
+    content_modules: Mapped[list["ContentModule"]] = relationship(
+        back_populates="chapter", cascade="all, delete-orphan"
+    )
 
 
 class KnowledgeNode(Base):
     __tablename__ = "knowledge_nodes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), nullable=False)
+    course_id: Mapped[int] = mapped_column(
+        ForeignKey("courses.id", ondelete="CASCADE"), nullable=False
+    )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     type: Mapped[str] = mapped_column(String(20), nullable=False)
     importance: Mapped[float] = mapped_column(nullable=False, default=0.5)
@@ -79,7 +91,9 @@ class KnowledgeEdge(Base):
     __tablename__ = "knowledge_edges"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), nullable=False)
+    course_id: Mapped[int] = mapped_column(
+        ForeignKey("courses.id", ondelete="CASCADE"), nullable=False
+    )
     source_node_id: Mapped[int] = mapped_column(
         ForeignKey("knowledge_nodes.id", ondelete="CASCADE"), nullable=False
     )
@@ -95,7 +109,9 @@ class ContentModule(Base):
     __tablename__ = "content_modules"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    chapter_id: Mapped[int] = mapped_column(ForeignKey("chapters.id"), nullable=False)
+    chapter_id: Mapped[int] = mapped_column(
+        ForeignKey("chapters.id", ondelete="CASCADE"), nullable=False
+    )
     modal_type: Mapped[str] = mapped_column(String(30), nullable=False)
     content_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     file_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
@@ -108,7 +124,7 @@ class GenerationProgress(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     course_id: Mapped[int] = mapped_column(
-        ForeignKey("courses.id"), nullable=False, unique=True
+        ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, unique=True
     )
     status: Mapped[str] = mapped_column(String(30), nullable=False)
     current_step: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

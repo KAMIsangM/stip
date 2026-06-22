@@ -598,6 +598,8 @@ loadGraph()
 window.addEventListener('resize', handleResize)
 // Setup ResizeObserver after initial render (chartRef will be available in nextTick)
 nextTick(() => setupResizeObserver())
+
+defineExpose({ loadGraph })
 </script>
 
 <style scoped>

@@ -1,0 +1,364 @@
+{
+  "id": 3,
+  "name": "基础化学导论",
+  "description": "",
+  "nodes": [
+    {
+      "id": 1,
+      "name": "物质与变化的分类",
+      "type": "概念",
+      "importance": 0.9,
+      "description": ""
+    },
+    {
+      "id": 2,
+      "name": "原子与元素",
+      "type": "概念",
+      "importance": 0.9,
+      "description": ""
+    },
+    {
+      "id": 3,
+      "name": "原子结构：质子、中子与电子",
+      "type": "概念",
+      "importance": 0.95,
+      "description": ""
+    },
+    {
+      "id": 4,
+      "name": "原子序数、质量数与同位素",
+      "type": "记忆",
+      "importance": 0.85,
+      "description": ""
+    },
+    {
+      "id": 5,
+      "name": "电子排布与能级",
+      "type": "概念",
+      "importance": 0.9,
+      "description": ""
+    },
+    {
+      "id": 6,
+      "name": "化学键的类型",
+      "type": "概念",
+      "importance": 0.85,
+      "description": ""
+    },
+    {
+      "id": 7,
+      "name": "离子键",
+      "type": "概念",
+      "importance": 0.8,
+      "description": ""
+    },
+    {
+      "id": 8,
+      "name": "共价键",
+      "type": "概念",
+      "importance": 0.85,
+      "description": ""
+    },
+    {
+      "id": 9,
+      "name": "金属键",
+      "type": "概念",
+      "importance": 0.7,
+      "description": ""
+    },
+    {
+      "id": 10,
+      "name": "分子间作用力",
+      "type": "概念",
+      "importance": 0.8,
+      "description": ""
+    },
+    {
+      "id": 11,
+      "name": "分子极性",
+      "type": "综合",
+      "importance": 0.8,
+      "description": ""
+    },
+    {
+      "id": 12,
+      "name": "化学方程式",
+      "type": "技能",
+      "importance": 0.9,
+      "description": ""
+    },
+    {
+      "id": 13,
+      "name": "化学反应类型",
+      "type": "概念",
+      "importance": 0.8,
+      "description": ""
+    },
+    {
+      "id": 14,
+      "name": "摩尔概念与阿伏伽德罗常数",
+      "type": "概念",
+      "importance": 0.9,
+      "description": ""
+    },
+    {
+      "id": 15,
+      "name": "化学计量计算",
+      "type": "技能",
+      "importance": 0.9,
+      "description": ""
+    },
+    {
+      "id": 16,
+      "name": "氧化还原反应基础",
+      "type": "概念",
+      "importance": 0.8,
+      "description": ""
+    },
+    {
+      "id": 17,
+      "name": "溶液的组成与分类",
+      "type": "概念",
+      "importance": 0.8,
+      "description": ""
+    },
+    {
+      "id": 18,
+      "name": "浓度表示法",
+      "type": "技能",
+      "importance": 0.85,
+      "description": ""
+    },
+    {
+      "id": 19,
+      "name": "稀释与混合计算",
+      "type": "实践",
+      "importance": 0.8,
+      "description": ""
+    },
+    {
+      "id": 20,
+      "name": "溶解度与饱和溶液",
+      "type": "概念",
+      "importance": 0.75,
+      "description": ""
+    },
+    {
+      "id": 21,
+      "name": "实验室安全规范",
+      "type": "记忆",
+      "importance": 1.0,
+      "description": ""
+    },
+    {
+      "id": 22,
+      "name": "基本实验操作",
+      "type": "技能",
+      "importance": 0.9,
+      "description": ""
+    },
+    {
+      "id": 23,
+      "name": "物质的分离与提纯",
+      "type": "实践",
+      "importance": 0.85,
+      "description": ""
+    },
+    {
+      "id": 24,
+      "name": "滴定实验",
+      "type": "实践",
+      "importance": 0.85,
+      "description": ""
+    },
+    {
+      "id": 25,
+      "name": "酸碱指示剂与pH",
+      "type": "综合",
+      "importance": 0.8,
+      "description": ""
+    }
+  ],
+  "edges": [
+    {
+      "source_node_id": 1,
+      "target_node_id": 2,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 2,
+      "target_node_id": 3,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 3,
+      "target_node_id": 4,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 3,
+      "target_node_id": 5,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 5,
+      "target_node_id": 6,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 6,
+      "target_node_id": 7,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 6,
+      "target_node_id": 8,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 6,
+      "target_node_id": 9,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 8,
+      "target_node_id": 10,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 8,
+      "target_node_id": 11,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 10,
+      "target_node_id": 11,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 2,
+      "target_node_id": 12,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 12,
+      "target_node_id": 13,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 2,
+      "target_node_id": 14,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 12,
+      "target_node_id": 15,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 14,
+      "target_node_id": 15,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 13,
+      "target_node_id": 16,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 3,
+      "target_node_id": 16,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 1,
+      "target_node_id": 17,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 14,
+      "target_node_id": 18,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 18,
+      "target_node_id": 19,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 17,
+      "target_node_id": 20,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 21,
+      "target_node_id": 22,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 22,
+      "target_node_id": 23,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 19,
+      "target_node_id": 24,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 22,
+      "target_node_id": 24,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 24,
+      "target_node_id": 25,
+      "relation_type": "prerequisite"
+    },
+    {
+      "source_node_id": 1,
+      "target_node_id": 13,
+      "relation_type": "contains"
+    },
+    {
+      "source_node_id": 17,
+      "target_node_id": 18,
+      "relation_type": "contains"
+    },
+    {
+      "source_node_id": 7,
+      "target_node_id": 8,
+      "relation_type": "causal"
+    },
+    {
+      "source_node_id": 4,
+      "target_node_id": 3,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 7,
+      "target_node_id": 9,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 15,
+      "target_node_id": 19,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 23,
+      "target_node_id": 24,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 16,
+      "target_node_id": 17,
+      "relation_type": "related"
+    },
+    {
+      "source_node_id": 18,
+      "target_node_id": 20,
+      "relation_type": "related"
+    }
+  ]
+}
