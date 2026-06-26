@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ title }}</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.2/anime.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Microsoft YaHei', 'PingFang SC', 'Georgia', serif;
+  background: linear-gradient(135deg, #2d3436 0%, #636e72 100%);
+  min-height: 100vh; padding: 30px; color: #f0f0f0;
+}
+.container { max-width: 860px; margin: 0 auto; }
+.header { text-align: center; margin-bottom: 25px; }
+.header h1 { color: #dfe6e9; font-size: 28px; margin-bottom: 6px; }
+.header p { color: rgba(255,255,255,0.5); font-size: 14px; }
+
+.info-card {
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px; padding: 18px; margin-bottom: 20px;
+}
+.info-card h3 { color: #74b9ff; font-size: 17px; margin-bottom: 6px; }
+.info-card p { color: #b2bec3; font-size: 14px; line-height: 1.6; }
+
+.viz-area {
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px; padding: 30px; margin-bottom: 20px;
+  min-height: 350px;
+}
+
+/* Formula display */
+.formula-main {
+  text-align: center; padding: 30px 0; min-height: 120px;
+  display: flex; align-items: center; justify-content: center;
+}
+.formula-display {
+  font-size: 32px; font-family: 'Georgia', 'Times New Roman', serif;
+  color: #fff; background: rgba(116,185,255,0.1);
+  padding: 20px 40px; border-radius: 12px; border: 2px solid rgba(116,185,255,0.3);
+  display: inline-block; letter-spacing: 2px;
+  transition: all 0.5s ease;
+}
+.formula-display .highlight {
+  color: #fab1a0; font-weight: bold;
+  animation: glowPulse 1.5s infinite;
+}
+.formula-display .new-part {
+  color: #55efc4; font-weight: bold;
+  animation: fadeInRight 0.6s ease-out;
+}
+@keyframes glowPulse {
+  0%, 100% { text-shadow: 0 0 8px rgba(250,177,160,0.3); }
+  50% { text-shadow: 0 0 20px rgba(250,177,160,0.8); }
+}
+@keyframes fadeInRight {
+  0% { opacity: 0; transform: translateX(20px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+/* Derivation steps */
+.derivation-steps {
+  margin-top: 20px;
+}
+.derivation-step {
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px; padding: 12px 16px; margin-bottom: 8px;
+  display: flex; align-items: flex-start; gap: 12px;
+  transition: all 0.4s ease; opacity: 0.3;
+}
+.derivation-step.visible {
+  opacity: 1; border-color: rgba(116,185,255,0.2);
+}
+.derivation-step.current {
+  opacity: 1; border-color: #74b9ff;
+  background: rgba(116,185,255,0.12); box-shadow: 0 0 15px rgba(116,185,255,0.15);
+}
+.step-num {
+  background: rgba(255,255,255,0.1); border-radius: 50%;
+  width: 28px; height: 28px; display: flex; align-items: center;
+  justify-content: center; font-size: 13px; font-weight: bold;
+  flex-shrink: 0; color: #b2bec3;
+}
+.derivation-step.current .step-num {
+  background: #74b9ff; color: #2d3436;
+}
+.step-content { font-size: 14px; color: #b2bec3; line-height: 1.5; flex: 1; }
+.derivation-step.current .step-content { color: #dfe6e9; }
+
+.step-explanation {
+  font-size: 12px; color: #636e72; margin-top: 4px;
+  font-style: italic;
+}
+
+.controls {
+  display: flex; gap: 12px; justify-content: center;
+  flex-wrap: wrap; margin-bottom: 15px;
+}
+.btn {
+  padding: 10px 24px; border: none; border-radius: 25px;
+  font-size: 14px; cursor: pointer; transition: all 0.3s;
+  font-weight: 600;
+}
+.btn-primary { background: #74b9ff; color: #2d3436; }
+.btn-primary:hover { background: #5aa8e8; }
+.btn-secondary { background: rgba(255,255,255,0.1); color: #ccc; }
+.btn-secondary:hover { background: rgba(255,255,255,0.2); }
+.btn-success { background: #55efc4; color: #2d3436; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.speed-control {
+  display: flex; align-items: center; gap: 10px;
+  justify-content: center; margin-bottom: 20px; color: rgba(255,255,255,0.5);
+}
+.speed-control input[type="range"] { width: 120px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>{{ title }}</h1>
+    <p>{{ description }}</p>
+  </div>
+
+  <div class="info-card">
+    <h3>📐 公式背景</h3>
+    <p>{{ explanation }}</p>
+  </div>
+
+  <div class="viz-area">
+    <div class="formula-main">
+      <div class="formula-display" id="formulaDisplay">{{ initial_formula }}</div>
+    </div>
+    <div class="derivation-steps" id="derivationSteps"></div>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-primary" id="btnStart">▶ 开始推导</button>
+    <button class="btn btn-secondary" id="btnPrev">◀ 上一步</button>
+    <button class="btn btn-secondary" id="btnNext">下一步 ▶</button>
+    <button class="btn btn-success" id="btnAuto">⏩ 自动播放</button>
+    <button class="btn btn-secondary" id="btnReset">↻ 重置</button>
+  </div>
+
+  <div class="speed-control">
+    <label>⚡ 播放速度：</label>
+    <input type="range" id="speedSlider" min="300" max="3000" value="1500" step="50">
+    <span id="speedLabel">1500ms</span>
+  </div>
+</div>
+
+<script>
+const ANIMATION_STEPS = {{ steps_json }};
+const INITIAL_FORMULA = "{{ initial_formula }}";
+let currentStep = -1;
+let isAutoPlaying = false;
+let autoTimer = null;
+
+function buildDerivationSteps() {
+  const container = document.getElementById('derivationSteps');
+  if (!ANIMATION_STEPS.length) {
+    container.innerHTML = '<p style="color:#636e72;text-align:center;">无推导步骤</p>';
+    return;
+  }
+  
+  container.innerHTML = ANIMATION_STEPS.map((s, i) => `
+    <div class="derivation-step" data-step="${i}">
+      <div class="step-num">${i + 1}</div>
+      <div>
+        <div class="step-content">${s.content}</div>
+        ${s.explanation ? `<div class="step-explanation">${s.explanation}</div>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function resetState() {
+  currentStep = -1;
+  document.getElementById('formulaDisplay').innerHTML = INITIAL_FORMULA;
+  document.querySelectorAll('.derivation-step').forEach(el => {
+    el.classList.remove('visible', 'current');
+  });
+  stopAutoPlay();
+  updateButtons();
+}
+
+function applyStep(stepIdx) {
+  if (stepIdx < 0 || stepIdx >= ANIMATION_STEPS.length) return;
+  const step = ANIMATION_STEPS[stepIdx];
+  const speed = parseInt(document.getElementById('speedSlider').value);
+  
+  // Update formula display
+  const formulaEl = document.getElementById('formulaDisplay');
+  if (step.formula_html) {
+    anime({
+      targets: formulaEl,
+      opacity: [1, 0],
+      duration: speed * 0.3,
+      easing: 'easeInQuad',
+      complete: () => {
+        formulaEl.innerHTML = step.formula_html;
+        anime({ targets: formulaEl, opacity: [0, 1], duration: speed * 0.4, easing: 'easeOutQuad' });
+      }
+    });
+  }
+  
+  // Highlight derivation step
+  document.querySelectorAll('.derivation-step').forEach(el => {
+    el.classList.remove('current');
+    const s = parseInt(el.dataset.step);
+    if (s < stepIdx) el.classList.add('visible');
+    else if (s > stepIdx) el.classList.remove('visible');
+    else el.classList.add('visible', 'current');
+  });
+  
+  currentStep = stepIdx;
+  updateButtons();
+}
+
+function updateButtons() {
+  document.getElementById('btnPrev').disabled = currentStep <= 0;
+  document.getElementById('btnNext').disabled = currentStep >= ANIMATION_STEPS.length - 1;
+}
+
+function nextStep() {
+  if (currentStep < ANIMATION_STEPS.length - 1) applyStep(currentStep + 1);
+}
+function prevStep() {
+  if (currentStep > 0) applyStep(currentStep - 1);
+  else if (currentStep === 0) resetState();
+}
+
+function startAnimation() {
+  resetState();
+  setTimeout(() => nextStep(), 300);
+}
+
+function toggleAutoPlay() {
+  if (isAutoPlaying) {
+    stopAutoPlay();
+    document.getElementById('btnAuto').textContent = '⏩ 自动播放';
+  } else {
+    isAutoPlaying = true;
+    document.getElementById('btnAuto').textContent = '⏸ 暂停';
+    autoPlayLoop();
+  }
+}
+function autoPlayLoop() {
+  if (!isAutoPlaying) return;
+  if (currentStep >= ANIMATION_STEPS.length - 1) {
+    stopAutoPlay();
+    document.getElementById('btnAuto').textContent = '⏩ 自动播放';
+    return;
+  }
+  nextStep();
+  const speed = parseInt(document.getElementById('speedSlider').value);
+  autoTimer = setTimeout(autoPlayLoop, speed + 200);
+}
+function stopAutoPlay() {
+  isAutoPlaying = false;
+  if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
+}
+
+document.getElementById('speedSlider').addEventListener('input', function() {
+  document.getElementById('speedLabel').textContent = this.value + 'ms';
+});
+document.getElementById('btnStart').addEventListener('click', startAnimation);
+document.getElementById('btnPrev').addEventListener('click', prevStep);
+document.getElementById('btnNext').addEventListener('click', nextStep);
+document.getElementById('btnAuto').addEventListener('click', toggleAutoPlay);
+document.getElementById('btnReset').addEventListener('click', resetState);
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'ArrowRight') { e.preventDefault(); nextStep(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); prevStep(); }
+  else if (e.key === ' ') { e.preventDefault(); toggleAutoPlay(); }
+});
+
+// Init
+buildDerivationSteps();
+updateButtons();
+</script>
+</body>
+</html>

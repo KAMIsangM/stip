@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>列表操作演示</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.2/anime.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  background: linear-gradient(135deg, #0c3483 0%, #a2b6df 100%);
+  min-height: 100vh; padding: 30px; color: #333;
+}
+.container { max-width: 960px; margin: 0 auto; }
+.header { text-align: center; margin-bottom: 25px; }
+.header h1 { color: #fff; font-size: 28px; margin-bottom: 6px; }
+.header p { color: rgba(255,255,255,0.8); font-size: 14px; }
+
+.info-card {
+  background: rgba(255,255,255,0.95); border-radius: 12px;
+  padding: 18px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+.info-card h3 { color: #0c3483; font-size: 17px; margin-bottom: 6px; }
+.info-card p { color: #666; font-size: 14px; line-height: 1.6; }
+
+.viz-area {
+  background: rgba(255,255,255,0.95); border-radius: 12px;
+  padding: 30px 20px; margin-bottom: 20px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  text-align: center; min-height: 350px; position: relative;
+}
+
+/* SVG canvas for data structure drawing */
+svg#dsCanvas { width: 100%; height: 320px; }
+
+.node-rect, .node-circle {
+  transition: all 0.3s ease;
+}
+.node-rect.active, .node-circle.active {
+  filter: drop-shadow(0 0 8px rgba(102,126,234,0.8));
+}
+.node-rect.inserted, .node-circle.inserted {
+  animation: popIn 0.4s ease-out;
+}
+@keyframes popIn {
+  0% { transform: scale(0); opacity: 0; }
+  70% { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.arrow-line { transition: all 0.3s ease; }
+.arrow-line.highlight { stroke: #f5576c; stroke-width: 3; }
+
+.step-info {
+  margin-top: 16px; font-size: 15px; color: #555;
+}
+.step-number {
+  display: inline-block; background: #0c3483; color: #fff;
+  padding: 4px 12px; border-radius: 20px; font-size: 13px; margin-right: 8px;
+}
+
+.controls {
+  display: flex; gap: 12px; justify-content: center;
+  flex-wrap: wrap; margin-bottom: 15px;
+}
+.btn {
+  padding: 10px 24px; border: none; border-radius: 25px;
+  font-size: 14px; cursor: pointer; transition: all 0.3s;
+  font-weight: 600;
+}
+.btn-primary { background: #0c3483; color: #fff; }
+.btn-primary:hover { background: #0a2a6e; transform: translateY(-1px); }
+.btn-secondary { background: #e8e8e8; color: #555; }
+.btn-secondary:hover { background: #ddd; }
+.btn-success { background: #2ed573; color: #fff; }
+.btn-success:hover { background: #26bc66; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.speed-control {
+  display: flex; align-items: center; gap: 10px;
+  justify-content: center; margin-bottom: 20px; color: #fff;
+}
+.speed-control label { font-size: 13px; }
+.speed-control input[type="range"] { width: 120px; }
+
+.legend {
+  display: flex; gap: 16px; justify-content: center;
+  flex-wrap: wrap; margin-top: 12px; font-size: 12px;
+}
+.legend-item { display: flex; align-items: center; gap: 4px; }
+.legend-dot {
+  width: 10px; height: 10px; border-radius: 50%; display: inline-block;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>列表操作演示</h1>
+    <p>列表 — 演示列表的插入、删除和修改</p>
+  </div>
+
+  <div class="info-card">
+    <h3>📖 数据结构说明</h3>
+    <p>列表支持多种操作：append在末尾添加，insert在指定位置插入，remove删除指定元素，pop删除指定索引，以及直接赋值修改元素。本动画展示在索引1插入25，删除索引2的元素，修改索引0为5。</p>
+  </div>
+
+  <div class="viz-area">
+    <svg id="dsCanvas" viewBox="0 0 900 320"></svg>
+    <div class="step-info">
+      <span class="step-number" id="stepNum">0/0</span>
+      <span id="stepDesc">点击"开始动画"查看列表操作演示</span>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><span class="legend-dot" style="background:#667eea"></span> 普通节点</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#f5576c"></span> 操作目标</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#2ed573"></span> 新插入节点</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#ffa502"></span> 遍历指针</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-primary" id="btnStart">▶ 开始动画</button>
+    <button class="btn btn-secondary" id="btnPrev">◀ 上一步</button>
+    <button class="btn btn-secondary" id="btnNext">下一步 ▶</button>
+    <button class="btn btn-success" id="btnAuto">⏩ 自动播放</button>
+    <button class="btn btn-secondary" id="btnReset">↻ 重置</button>
+  </div>
+
+  <div class="speed-control">
+    <label>⚡ 播放速度：</label>
+    <input type="range" id="speedSlider" min="200" max="3000" value="1200" step="50">
+    <span id="speedLabel" style="min-width:45px;">1200ms</span>
+  </div>
+</div>
+
+<script>
+// ===== Injected Data =====
+const ANIMATION_STEPS = [{"nodes": [{"x": 30, "y": 60, "w": 55, "h": 40, "label": "10", "shape": "rect"}, {"x": 110, "y": 60, "w": 55, "h": 40, "label": "20", "shape": "rect"}, {"x": 190, "y": 60, "w": 55, "h": 40, "label": "30", "shape": "rect"}, {"x": 270, "y": 60, "w": 55, "h": 40, "label": "40", "shape": "rect"}], "edges": [{"x1": 85, "y1": 80, "x2": 110, "y2": 80}, {"x1": 165, "y1": 80, "x2": 190, "y2": 80}, {"x1": 245, "y1": 80, "x2": 270, "y2": 80}], "highlight_nodes": [], "highlight_edges": [], "pointer_pos": {"x": 57, "y": 45}, "pointer_label": "list", "inserted_nodes": [], "description": "初始列表 [10, 20, 30, 40]"}, {"nodes": [{"x": 30, "y": 60, "w": 55, "h": 40, "label": "10", "shape": "rect"}, {"x": 110, "y": 60, "w": 55, "h": 40, "label": "25", "shape": "rect"}, {"x": 190, "y": 60, "w": 55, "h": 40, "label": "20", "shape": "rect"}, {"x": 270, "y": 60, "w": 55, "h": 40, "label": "30", "shape": "rect"}, {"x": 350, "y": 60, "w": 55, "h": 40, "label": "40", "shape": "rect"}], "edges": [{"x1": 85, "y1": 80, "x2": 110, "y2": 80}, {"x1": 165, "y1": 80, "x2": 190, "y2": 80}, {"x1": 245, "y1": 80, "x2": 270, "y2": 80}, {"x1": 325, "y1": 80, "x2": 350, "y2": 80}], "highlight_nodes": [1], "highlight_edges": [], "pointer_pos": {"x": 57, "y": 45}, "pointer_label": "list", "inserted_nodes": [1], "description": "在索引1处插入25，原元素后移"}, {"nodes": [{"x": 30, "y": 60, "w": 55, "h": 40, "label": "10", "shape": "rect"}, {"x": 110, "y": 60, "w": 55, "h": 40, "label": "25", "shape": "rect"}, {"x": 190, "y": 60, "w": 55, "h": 40, "label": "30", "shape": "rect"}, {"x": 270, "y": 60, "w": 55, "h": 40, "label": "40", "shape": "rect"}], "edges": [{"x1": 85, "y1": 80, "x2": 110, "y2": 80}, {"x1": 165, "y1": 80, "x2": 190, "y2": 80}, {"x1": 245, "y1": 80, "x2": 270, "y2": 80}], "highlight_nodes": [], "highlight_edges": [], "pointer_pos": {"x": 57, "y": 45}, "pointer_label": "list", "inserted_nodes": [], "description": "删除索引2的元素（即20），后续元素左移"}, {"nodes": [{"x": 30, "y": 60, "w": 55, "h": 40, "label": "5", "shape": "rect"}, {"x": 110, "y": 60, "w": 55, "h": 40, "label": "25", "shape": "rect"}, {"x": 190, "y": 60, "w": 55, "h": 40, "label": "30", "shape": "rect"}, {"x": 270, "y": 60, "w": 55, "h": 40, "label": "40", "shape": "rect"}], "edges": [{"x1": 85, "y1": 80, "x2": 110, "y2": 80}, {"x1": 165, "y1": 80, "x2": 190, "y2": 80}, {"x1": 245, "y1": 80, "x2": 270, "y2": 80}], "highlight_nodes": [0], "highlight_edges": [], "pointer_pos": {"x": 57, "y": 45}, "pointer_label": "list", "inserted_nodes": [], "description": "修改索引0的值为5"}];
+const DS_TYPE = "list"; // linked_list, stack, queue, binary_tree
+
+let currentStep = -1;
+let isAutoPlaying = false;
+let autoTimer = null;
+
+const svg = document.getElementById('dsCanvas');
+
+function resetState() {
+  currentStep = -1;
+  if (ANIMATION_STEPS.length > 0) {
+    drawState(ANIMATION_STEPS[0]);
+  }
+  document.getElementById('stepNum').textContent = '0/' + ANIMATION_STEPS.length;
+  document.getElementById('stepDesc').textContent = '点击"开始动画"查看列表操作演示';
+  stopAutoPlay();
+}
+
+function drawState(step) {
+  svg.innerHTML = '';
+  const nodes = step.nodes || [];
+  const edges = step.edges || [];
+  const highlightNodes = step.highlight_nodes || [];
+  const highlightEdges = step.highlight_edges || [];
+  const pointerPos = step.pointer_pos;
+  const specialColor = step.special_color || '#2ed573';
+
+  // Draw edges first (behind nodes)
+  edges.forEach((edge, ei) => {
+    const isHighlight = highlightEdges.includes(ei);
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', edge.x1);
+    line.setAttribute('y1', edge.y1);
+    line.setAttribute('x2', edge.x2);
+    line.setAttribute('y2', edge.y2);
+    line.setAttribute('stroke', isHighlight ? '#f5576c' : '#ccc');
+    line.setAttribute('stroke-width', isHighlight ? '3' : '2');
+    line.setAttribute('marker-end', 'url(#arrowhead)');
+    if (edge.curved) {
+      line.setAttribute('stroke-dasharray', '6,3');
+    }
+    svg.appendChild(line);
+  });
+
+  // Arrow marker defs
+  if (edges.length > 0) {
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    defs.innerHTML = `<marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#ccc"/></marker>
+      <marker id="arrowhead-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#f5576c"/></marker>`;
+    svg.appendChild(defs);
+  }
+
+  // Draw nodes
+  nodes.forEach((node, ni) => {
+    const isHighlight = highlightNodes.includes(ni);
+    const isSpecial = step.inserted_nodes && step.inserted_nodes.includes(ni);
+    let fill = '#667eea';
+    if (isHighlight) fill = '#f5576c';
+    if (isSpecial) fill = specialColor;
+
+    if (node.shape === 'circle') {
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', node.x);
+      circle.setAttribute('cy', node.y);
+      circle.setAttribute('r', node.r || 25);
+      circle.setAttribute('fill', fill);
+      circle.setAttribute('stroke', '#fff');
+      circle.setAttribute('stroke-width', '2');
+      if (isHighlight || isSpecial) {
+        circle.setAttribute('class', isSpecial ? 'node-circle inserted' : 'node-circle active');
+      }
+      svg.appendChild(circle);
+    } else {
+      // Rectangle node (default for linked list)
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', node.x);
+      rect.setAttribute('y', node.y);
+      rect.setAttribute('width', node.w || 55);
+      rect.setAttribute('height', node.h || 40);
+      rect.setAttribute('rx', '6');
+      rect.setAttribute('fill', fill);
+      rect.setAttribute('stroke', '#fff');
+      rect.setAttribute('stroke-width', '2');
+      if (isHighlight || isSpecial) {
+        rect.setAttribute('class', isSpecial ? 'node-rect inserted' : 'node-rect active');
+      }
+      svg.appendChild(rect);
+    }
+
+    // Node label
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', (node.x + (node.w || 55) / 2) || node.x);
+    text.setAttribute('y', (node.y + (node.h || 40) / 2 + 5) || (node.y + 6));
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('fill', '#fff');
+    text.setAttribute('font-size', '14');
+    text.setAttribute('font-weight', 'bold');
+    text.textContent = node.label || '';
+    svg.appendChild(text);
+  });
+
+  // Pointer indicator
+  if (pointerPos !== undefined && pointerPos !== null) {
+    const ptr = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    ptr.setAttribute('points', `${pointerPos.x-8},${pointerPos.y-30} ${pointerPos.x+8},${pointerPos.y-30} ${pointerPos.x},${pointerPos.y-18}`);
+    ptr.setAttribute('fill', '#ffa502');
+    svg.appendChild(ptr);
+    const ptrLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    ptrLabel.setAttribute('x', pointerPos.x);
+    ptrLabel.setAttribute('y', pointerPos.y - 36);
+    ptrLabel.setAttribute('text-anchor', 'middle');
+    ptrLabel.setAttribute('fill', '#ffa502');
+    ptrLabel.setAttribute('font-size', '12');
+    ptrLabel.setAttribute('font-weight', 'bold');
+    ptrLabel.textContent = step.pointer_label || 'ptr';
+    svg.appendChild(ptrLabel);
+  }
+}
+
+function applyStep(stepIdx) {
+  if (stepIdx < 0 || stepIdx >= ANIMATION_STEPS.length) return;
+  const step = ANIMATION_STEPS[stepIdx];
+  const speed = parseInt(document.getElementById('speedSlider').value);
+
+  drawState(step);
+
+  document.getElementById('stepDesc').textContent = step.description || '';
+  currentStep = stepIdx;
+  document.getElementById('stepNum').textContent = `${currentStep + 1}/${ANIMATION_STEPS.length}`;
+
+  document.getElementById('btnPrev').disabled = currentStep <= 0;
+  document.getElementById('btnNext').disabled = currentStep >= ANIMATION_STEPS.length - 1;
+}
+
+function nextStep() {
+  if (currentStep < ANIMATION_STEPS.length - 1) {
+    applyStep(currentStep + 1);
+  }
+}
+function prevStep() {
+  if (currentStep > 0) {
+    applyStep(currentStep - 1);
+  }
+}
+
+function startAnimation() {
+  resetState();
+  setTimeout(() => nextStep(), 300);
+}
+
+function toggleAutoPlay() {
+  if (isAutoPlaying) {
+    stopAutoPlay();
+    document.getElementById('btnAuto').textContent = '⏩ 自动播放';
+  } else {
+    isAutoPlaying = true;
+    document.getElementById('btnAuto').textContent = '⏸ 暂停';
+    autoPlayLoop();
+  }
+}
+
+function autoPlayLoop() {
+  if (!isAutoPlaying) return;
+  if (currentStep >= ANIMATION_STEPS.length - 1) {
+    stopAutoPlay();
+    document.getElementById('btnAuto').textContent = '⏩ 自动播放';
+    return;
+  }
+  nextStep();
+  const speed = parseInt(document.getElementById('speedSlider').value);
+  autoTimer = setTimeout(autoPlayLoop, speed + 200);
+}
+
+function stopAutoPlay() {
+  isAutoPlaying = false;
+  if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
+}
+
+document.getElementById('speedSlider').addEventListener('input', function() {
+  document.getElementById('speedLabel').textContent = this.value + 'ms';
+});
+document.getElementById('btnStart').addEventListener('click', startAnimation);
+document.getElementById('btnPrev').addEventListener('click', prevStep);
+document.getElementById('btnNext').addEventListener('click', nextStep);
+document.getElementById('btnAuto').addEventListener('click', toggleAutoPlay);
+document.getElementById('btnReset').addEventListener('click', resetState);
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'ArrowRight') { e.preventDefault(); nextStep(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); prevStep(); }
+  else if (e.key === ' ') { e.preventDefault(); toggleAutoPlay(); }
+});
+
+// Init
+if (ANIMATION_STEPS.length > 0) {
+  drawState(ANIMATION_STEPS[0]);
+}
+document.getElementById('stepNum').textContent = '0/' + ANIMATION_STEPS.length;
+document.getElementById('btnPrev').disabled = true;
+document.getElementById('btnNext').disabled = ANIMATION_STEPS.length <= 0;
+</script>
+</body>
+</html>

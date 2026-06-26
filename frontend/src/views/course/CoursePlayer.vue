@@ -22,15 +22,21 @@
           </el-tag>
         </div>
       </div>
-      <el-button
-        v-if="courseStatus === 'outlined'"
-        type="primary"
-        size="small"
-        :loading="generating"
-        @click="triggerGenerate"
-      >
-        生成教学内容
-      </el-button>
+      <div class="header-actions">
+        <el-button
+          v-if="courseStatus === 'outlined'"
+          type="primary"
+          size="small"
+          :loading="generating"
+          @click="triggerGenerate"
+        >
+          生成教学内容
+        </el-button>
+        <span class="user-name-inline">{{ authStore.username || '用户' }}</span>
+        <el-button text size="small" @click="handleLogout" style="color: #909399">
+          退出
+        </el-button>
+      </div>
     </header>
 
     <div class="player-body">
@@ -178,8 +184,11 @@
             <!-- Interactive HTML -->
             <template v-else-if="activeModal === 'interactive_html'">
               <InteractiveViewer
-                v-if="interactiveSections.length"
-                :sections="interactiveSections"
+                v-if="interactiveAnimations.length || interactiveSections.length"
+                :title="interactiveTitle"
+                :animations="interactiveAnimations"
+                :html-files="interactiveHtmlFiles"
+                :exercises="interactiveExercises"
                 :glossary="interactiveGlossary"
               />
               <el-empty v-else description="该章节暂无互动教材内容" :image-size="80" />
@@ -207,7 +216,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import ModalTab from '@/components/course/ModalTab.vue'
 import PptViewer from '@/components/course/PptViewer.vue'
@@ -218,11 +227,19 @@ import KnowledgeGraphEditor from '@/components/knowledge/KnowledgeGraphEditor.vu
 import ChatPanel from '@/components/course/ChatPanel.vue'
 import { getCourse, triggerGenerate as triggerGenerateApi, getProgress } from '@/api/course'
 import { getChapterContents } from '@/api/content'
+import { useAuthStore } from '@/store/auth'
 import type { PptSlide } from '@/components/course/PptViewer.vue'
 import type { ScenePlan } from '@/api/course'
 
 const route = useRoute()
+const router = useRouter()
+const authStore = useAuthStore()
 const courseId = computed(() => Number(route.params.id))
+
+function handleLogout() {
+  authStore.logout()
+  router.push('/login')
+}
 
 // Course data
 const courseTitle = ref('课程加载中…')
@@ -267,6 +284,9 @@ const quizResults = ref<Record<number, boolean>>({})
 const interactiveSections = ref<any[]>([])
 const interactiveTitle = ref('')
 const interactiveGlossary = ref<any[]>([])
+const interactiveAnimations = ref<any[]>([])
+const interactiveHtmlFiles = ref<string[]>([])
+const interactiveExercises = ref<any[]>([])
 
 // KnowledgeGraph ref for editor-triggered refresh
 const kgRef = ref<InstanceType<typeof KnowledgeGraph> | null>(null)
@@ -290,6 +310,9 @@ async function loadChapterContent() {
   interactiveSections.value = []
   interactiveTitle.value = ''
   interactiveGlossary.value = []
+  interactiveAnimations.value = []
+  interactiveHtmlFiles.value = []
+  interactiveExercises.value = []
 
   try {
     const response = await getChapterContents(activeChapter.value)
@@ -341,13 +364,24 @@ async function loadChapterContent() {
       quizPassScore.value = parsed.pass_score || Math.ceil((parsed.questions?.length || 0) * 0.6)
     }
 
-    // Parse interactive
+    // Parse interactive (supports both new animations format and legacy sections format)
     const intMods = byModal['interactive_html'] || []
     if (intMods.length && intMods[0].content_json) {
       const parsed = JSON.parse(intMods[0].content_json)
-      interactiveSections.value = parsed.sections || []
-      interactiveTitle.value = parsed.title || ''
-      interactiveGlossary.value = parsed.glossary || []
+      // New format: animations + html_files
+      if (parsed.animations && parsed.animations.length > 0) {
+        interactiveAnimations.value = parsed.animations || []
+        interactiveHtmlFiles.value = parsed.html_files || []
+        interactiveExercises.value = parsed.exercises || []
+        interactiveTitle.value = parsed.title || ''
+        interactiveGlossary.value = parsed.glossary || []
+        interactiveSections.value = []  // clear legacy
+      } else {
+        // Legacy format: sections
+        interactiveSections.value = parsed.sections || []
+        interactiveTitle.value = parsed.title || ''
+        interactiveGlossary.value = parsed.glossary || []
+      }
     }
   } catch (err: any) {
     // Content may not be generated yet — that's okay
@@ -513,7 +547,7 @@ function onContentGenerationFailed(errorMsg: string) {
 
 // Watch activeChapter → reload content
 watch(activeChapter, () => {
-  if (courseStatus.value === 'ready') {
+  if (courseStatus.value === 'ready' || courseStatus.value === 'outlined') {
     loadChapterContent()
   }
 })
@@ -554,43 +588,82 @@ function statusTagType(status: string): 'info' | 'success' | 'warning' | 'danger
 </script>
 
 <style scoped>
+/* ========================================================================= */
+/* Variables (shared with homepage palette)                                   */
+/* ========================================================================= */
+.player {
+  --c-primary: #6366f1;
+  --c-primary-light: #818cf8;
+  --c-bg: #f1f5f9;
+  --c-surface: #ffffff;
+  --c-surface-hover: #f8fafc;
+  --c-border: #e2e8f0;
+  --c-border-light: #f1f5f9;
+  --c-text: #1e293b;
+  --c-text-dim: #64748b;
+  --c-text-muted: #94a3b8;
+  --c-success: #16a34a;
+  --c-danger: #dc2626;
+  --c-warning: #f59e0b;
+  --header-h: 56px;
+}
+
+/* ========================================================================= */
+/* Layout                                                                     */
+/* ========================================================================= */
 .player {
   height: 100vh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: #f5f7fa;
+  background: var(--c-bg);
 }
 
+/* ========================================================================= */
+/* Header                                                                     */
+/* ========================================================================= */
 .player-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 20px;
-  background: #fff;
-  border-bottom: 1px solid #e4e7ed;
+  padding: 0 20px;
+  height: var(--header-h);
+  background: #ffffff;
+  border-bottom: 1px solid var(--c-border);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
   z-index: 10;
+  flex-shrink: 0;
 }
 
 .header-center {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   flex: 1;
   justify-content: center;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-name-inline {
+  font-size: 12px;
+  color: #909399;
 }
 
 .header-progress {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
 .progress-label {
   font-size: 12px;
-  color: #909399;
+  color: var(--c-text-dim);
   white-space: nowrap;
 }
 
@@ -603,9 +676,13 @@ function statusTagType(status: string): 'info' | 'success' | 'warning' | 'danger
 .course-title {
   font-size: 16px;
   font-weight: 600;
-  color: #303133;
+  color: var(--c-text);
+  letter-spacing: -0.01em;
 }
 
+/* ========================================================================= */
+/* Three-column body                                                          */
+/* ========================================================================= */
 .player-body {
   flex: 1;
   display: flex;
@@ -613,15 +690,17 @@ function statusTagType(status: string): 'info' | 'success' | 'warning' | 'danger
   align-items: flex-start;
 }
 
-/* Chapter sidebar */
+/* ------------------------------------------------------------------------- */
+/* Chapter sidebar                                                           */
+/* ------------------------------------------------------------------------- */
 .chapter-sidebar {
   width: 280px;
   min-width: 280px;
-  height: calc(100vh - 52px); /* align with chat sidebar */
-  background: #fff;
-  border-right: 1px solid #e4e7ed;
+  height: calc(100vh - var(--header-h));
+  background: var(--c-surface);
+  border-right: 1px solid var(--c-border);
   overflow-y: auto;
-  padding: 16px 0;
+  padding: 20px 0;
   position: sticky;
   top: 0;
   align-self: flex-start;
@@ -629,52 +708,57 @@ function statusTagType(status: string): 'info' | 'success' | 'warning' | 'danger
 }
 
 .chapter-sidebar h4 {
-  font-size: 14px;
-  color: #909399;
-  padding: 0 16px 12px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--c-text-muted);
+  padding: 0 20px 14px;
   margin: 0;
-  border-bottom: 1px solid #f2f3f5;
+  border-bottom: 1px solid var(--c-border-light);
 }
 
 .empty-chapters {
-  padding: 16px;
+  padding: 20px;
 }
 
 .chapter-item {
   display: flex;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 12px 20px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.2s, border-color 0.2s;
   border-left: 3px solid transparent;
+  margin: 0;
 }
 
 .chapter-item:hover {
-  background: #f5f7fa;
+  background: #eef2ff;
 }
 
 .chapter-item.active {
-  background: #ecf5ff;
-  border-left-color: #409eff;
+  background: #eef2ff;
+  border-left-color: var(--c-primary);
 }
 
 .chapter-order {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  background: #e4e7ed;
+  background: #e2e8f0;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 12px;
-  font-weight: 600;
-  color: #606266;
+  font-weight: 700;
+  color: var(--c-text-dim);
   flex-shrink: 0;
+  transition: background 0.2s, color 0.2s;
 }
 
 .chapter-item.active .chapter-order {
-  background: #409eff;
+  background: var(--c-primary);
   color: #fff;
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.25);
 }
 
 .chapter-content {
@@ -685,7 +769,7 @@ function statusTagType(status: string): 'info' | 'success' | 'warning' | 'danger
 .chapter-title {
   font-size: 14px;
   font-weight: 500;
-  color: #303133;
+  color: var(--c-text);
   line-height: 1.4;
   margin-bottom: 4px;
 }
@@ -698,7 +782,7 @@ function statusTagType(status: string): 'info' | 'success' | 'warning' | 'danger
 }
 
 .kp-tag {
-  font-size: 11px;
+  font-size: 11px !important;
 }
 
 .chapter-modals {
@@ -708,58 +792,20 @@ function statusTagType(status: string): 'info' | 'success' | 'warning' | 'danger
 }
 
 .modal-tag {
-  font-size: 10px;
+  font-size: 10px !important;
 }
 
-/* Scene overview bar */
-.scene-overview {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 0;
-  flex-wrap: wrap;
-}
-
-.scene-label {
-  font-size: 13px;
-  color: #909399;
-  white-space: nowrap;
-}
-
-.scene-modal-tag {
-  cursor: pointer;
-  transition: transform 0.15s;
-}
-
-.scene-modal-tag:hover {
-  transform: scale(1.05);
-}
-
-/* Main content */
+/* ------------------------------------------------------------------------- */
+/* Main content                                                               */
+/* ------------------------------------------------------------------------- */
 .player-main {
   flex: 1;
-  padding: 16px;
+  padding: 0 20px 0 20px;
   min-width: 0;
-  height: calc(100vh - 52px);
+  height: calc(100vh - var(--header-h));
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-
-/* Chat sidebar */
-.chat-sidebar {
-  width: 360px;
-  min-width: 360px;
-  height: calc(100vh - 52px); /* full viewport height minus header */
-  background: #fff;
-  display: flex;
-  flex-direction: column;
-  position: sticky;
-  top: 0;
-  align-self: flex-start;
-  flex-shrink: 0;
-  overflow: hidden; /* clip the sliding chat panel */
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .content-area {
@@ -771,9 +817,6 @@ function statusTagType(status: string): 'info' | 'success' | 'warning' | 'danger
   flex-direction: column;
   overflow-y: auto;
 }
-
-/* NOTE: .kg-wrapper styles are scoped in KnowledgeGraph.vue;
-   only override when needed for layout contexts */
 
 /* KnowledgeGraph section with editor */
 .kg-section {
@@ -788,22 +831,24 @@ function statusTagType(status: string): 'info' | 'success' | 'warning' | 'danger
   flex-direction: column;
 }
 
-/* Content loading */
+/* ------------------------------------------------------------------------- */
+/* Content loading                                                            */
+/* ------------------------------------------------------------------------- */
 .content-loading {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   flex: 1;
-  gap: 12px;
-  color: #999;
+  gap: 14px;
+  color: var(--c-text-dim);
   font-size: 14px;
 }
 .content-spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid #e0e0e0;
-  border-top-color: #409eff;
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(148, 163, 184, 0.15);
+  border-top-color: var(--c-primary);
   border-radius: 50%;
   animation: content-spin 0.8s linear infinite;
 }
@@ -811,131 +856,263 @@ function statusTagType(status: string): 'info' | 'success' | 'warning' | 'danger
   to { transform: rotate(360deg); }
 }
 
-/* Text content */
+/* ------------------------------------------------------------------------- */
+/* Text content cards                                                         */
+/* ------------------------------------------------------------------------- */
 .text-content {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
-  background: #fff;
-  border-radius: 8px;
+  padding: 24px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
 }
 .text-section {
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 .text-section h3 {
-  font-size: 18px;
-  color: #303133;
-  margin: 0 0 12px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--c-text);
+  margin: 0 0 14px;
+  position: relative;
+  padding-bottom: 10px;
+}
+.text-section h3::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 40px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--c-primary);
 }
 .text-para {
-  font-size: 14px;
-  color: #555;
-  line-height: 1.8;
-  margin: 0 0 8px;
+  font-size: 15px;
+  color: var(--c-text-dim);
+  line-height: 1.85;
+  margin: 0 0 10px;
 }
 .text-questions {
-  margin-top: 12px;
+  margin-top: 14px;
 }
 
-/* Quiz content */
+/* ------------------------------------------------------------------------- */
+/* Quiz content                                                               */
+/* ------------------------------------------------------------------------- */
 .quiz-content {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
-  background: #fff;
-  border-radius: 8px;
+  padding: 24px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
 }
 .quiz-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 .quiz-header h3 {
-  font-size: 18px;
+  font-size: 20px;
+  font-weight: 700;
   margin: 0;
-  color: #303133;
+  color: var(--c-text);
 }
 .quiz-score {
   font-size: 14px;
   font-weight: 600;
-  color: #409eff;
+  color: var(--c-primary);
+  padding: 4px 12px;
+  border-radius: 99px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
 }
 .quiz-item {
-  margin-bottom: 20px;
-  padding: 12px;
-  border: 1px solid #eee;
-  border-radius: 8px;
-  background: #fafafa;
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  background: #f8fafc;
+  transition: border-color 0.2s;
+}
+.quiz-item:hover {
+  border-color: #a5b4fc;
 }
 .quiz-q-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 .quiz-q-num {
   font-size: 12px;
-  color: #999;
+  color: var(--c-text-muted);
 }
 .quiz-q-text {
-  font-size: 14px;
-  color: #333;
-  margin: 0 0 10px;
+  font-size: 15px;
+  color: var(--c-text);
+  margin: 0 0 12px;
   font-weight: 500;
+  line-height: 1.6;
 }
 .quiz-options {
   margin-bottom: 8px;
 }
 .quiz-result {
-  margin-top: 8px;
-  padding: 6px 10px;
-  border-radius: 4px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
   font-size: 13px;
+  font-weight: 500;
 }
 .quiz-result.correct {
-  background: #e8f5e9;
-  color: #2e7d32;
+  background: #f0fdf4;
+  color: var(--c-success);
+  border: 1px solid #bbf7d0;
 }
 .quiz-result.wrong {
-  background: #ffebee;
-  color: #c62828;
+  background: #fef2f2;
+  color: var(--c-danger);
+  border: 1px solid #fecaca;
 }
 .quiz-short-answer {
   margin-bottom: 8px;
 }
 .quiz-summary {
-  margin-top: 16px;
+  margin-top: 20px;
 }
 
-/* Interactive content */
+/* ------------------------------------------------------------------------- */
+/* Interactive content                                                        */
+/* ------------------------------------------------------------------------- */
 .interactive-content {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
-  background: #fff;
-  border-radius: 8px;
+  padding: 24px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
 }
 .interactive-content h3 {
-  font-size: 18px;
-  margin: 0 0 16px;
-  color: #303133;
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 20px;
+  color: var(--c-text);
 }
 .interactive-section {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 .interactive-section h4 {
   font-size: 16px;
-  color: #409eff;
-  margin: 0 0 8px;
+  color: var(--c-primary);
+  margin: 0 0 10px;
 }
 .interactive-md {
-  font-size: 14px;
-  color: #555;
-  line-height: 1.8;
+  font-size: 15px;
+  color: var(--c-text-dim);
+  line-height: 1.85;
   margin-bottom: 8px;
 }
 .interactive-exercise {
-  margin-top: 10px;
+  margin-top: 12px;
 }
+
+/* ------------------------------------------------------------------------- */
+/* Chat sidebar                                                               */
+/* ------------------------------------------------------------------------- */
+.chat-sidebar {
+  width: 360px;
+  min-width: 360px;
+  height: calc(100vh - var(--header-h));
+  background: #f8fafc;
+  border-left: 1px solid var(--c-border);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ------------------------------------------------------------------------- */
+/* Scene overview bar                                                         */
+/* ------------------------------------------------------------------------- */
+.scene-overview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  flex-wrap: wrap;
+}
+
+.scene-label {
+  font-size: 13px;
+  color: var(--c-text-dim);
+  white-space: nowrap;
+}
+
+.scene-modal-tag {
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.scene-modal-tag:hover {
+  transform: scale(1.05);
+}
+
+/* ========================================================================= */
+/* Scrollbar                                                                  */
+/* ========================================================================= */
+.chapter-sidebar::-webkit-scrollbar,
+.content-area::-webkit-scrollbar,
+.text-content::-webkit-scrollbar,
+.quiz-content::-webkit-scrollbar,
+.interactive-content::-webkit-scrollbar {
+  width: 6px;
+}
+.chapter-sidebar::-webkit-scrollbar-thumb,
+.content-area::-webkit-scrollbar-thumb,
+.text-content::-webkit-scrollbar-thumb,
+.quiz-content::-webkit-scrollbar-thumb,
+.interactive-content::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+.chapter-sidebar::-webkit-scrollbar-thumb:hover,
+.content-area::-webkit-scrollbar-thumb:hover,
+.text-content::-webkit-scrollbar-thumb:hover,
+.quiz-content::-webkit-scrollbar-thumb:hover,
+.interactive-content::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ========================================================================= */
+/* Responsive                                                                 */
+/* ========================================================================= */
+@media (max-width: 1024px) {
+  .chapter-sidebar {
+    width: 240px;
+    min-width: 240px;
+  }
+  .chat-sidebar {
+    width: 300px;
+    min-width: 300px;
+  }
+}
+
+@media (max-width: 768px) {
+  .chapter-sidebar {
+    display: none;
+  }
+  .chat-sidebar {
+    width: 280px;
+    min-width: 280px;
+  }
+}
+
 </style>

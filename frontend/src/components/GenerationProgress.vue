@@ -224,7 +224,10 @@ onUnmounted(() => {
 <style scoped>
 .progress-card {
   margin: 16px;
-  background: #fff;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .row {
@@ -237,18 +240,18 @@ onUnmounted(() => {
 .label {
   font-size: 14px;
   font-weight: 500;
-  color: #303133;
+  color: #1e293b;
 }
 
 .step {
   margin: 8px 0 0;
   font-size: 13px;
-  color: #909399;
+  color: #64748b;
 }
 
 .error {
   margin: 8px 0 0;
   font-size: 13px;
-  color: #f56c6c;
+  color: #dc2626;
 }
 </style>

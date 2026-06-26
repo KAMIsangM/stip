@@ -17,7 +17,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.dependencies.auth import get_current_user
 from app.generator.generate_scheduler import GenerateScheduler
+from app.models import User
 from app.repository.course_repository import CourseRepository
 from app.service.course_service import CourseService
 from app.service.progress_service import ProgressService
@@ -70,6 +72,7 @@ class GenerateResponse(BaseModel):
 async def create_course(
     body: CourseCreateRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Create a new course and generate syllabus via LLM (synchronous).
 
@@ -83,6 +86,7 @@ async def create_course(
             title=body.title,
             description=body.description,
             preset_id=body.preset_id,
+            user_id=current_user.id,
         )
         return result
     except Exception as e:
@@ -101,6 +105,7 @@ def list_courses(
     status: str | None = None,
     keyword: str | None = None,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """List courses with pagination and optional filtering.
 
@@ -121,6 +126,7 @@ def list_courses(
             page_size=page_size,
             status=status,
             keyword=keyword,
+            user_id=current_user.id,
         )
         return result
     except Exception as e:
@@ -136,9 +142,15 @@ def list_courses(
 async def get_course(
     course_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get full course detail including chapters and generation progress."""
     try:
+        # Verify course belongs to user
+        repo = CourseRepository(db)
+        course = repo.get_by_id(course_id, user_id=current_user.id)
+        if course is None:
+            raise LookupError(f"Course {course_id} not found")
         service = CourseService(db)
         result = await service.get_course_detail(course_id)
         return result
@@ -157,6 +169,7 @@ async def get_course(
 def delete_course(
     course_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Delete a course and all its related data (chapters, knowledge nodes/edges,
     content modules, progress records).
@@ -165,6 +178,10 @@ def delete_course(
     """
     try:
         repo = CourseRepository(db)
+        # Verify ownership
+        course = repo.get_by_id(course_id, user_id=current_user.id)
+        if course is None:
+            raise HTTPException(status_code=404, detail=f"课程 {course_id} 不存在")
         success = repo.delete(course_id)
         if not success:
             raise HTTPException(status_code=404, detail=f"课程 {course_id} 不存在")
@@ -184,13 +201,20 @@ async def trigger_generate(
     course_id: int,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Trigger multi-modal content generation for a course (F002).
 
     This endpoint starts the async generation pipeline and returns immediately.
     Progress can be tracked via WebSocket or polling GET /courses/{course_id}.
     """
-    # Verify course exists
+    # Verify ownership
+    repo = CourseRepository(db)
+    course = repo.get_by_id(course_id, user_id=current_user.id)
+    if course is None:
+        raise HTTPException(status_code=404, detail=f"课程 {course_id} 不存在")
+
+    # Verify course exists and get detail
     service = CourseService(db)
     try:
         detail = await service.get_course_detail(course_id)
@@ -241,8 +265,14 @@ async def trigger_generate(
 def get_progress(
     course_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Poll current generation progress for a course."""
+    # Verify ownership
+    repo = CourseRepository(db)
+    course = repo.get_by_id(course_id, user_id=current_user.id)
+    if course is None:
+        raise HTTPException(status_code=404, detail=f"课程 {course_id} 不存在")
     svc = ProgressService(db)
     return svc.get_progress(course_id)
 

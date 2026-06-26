@@ -10,7 +10,8 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models import Chapter, ChatMessage, ContentModule, Course
+from app.dependencies.auth import get_current_user
+from app.models import Chapter, ChatMessage, ContentModule, Course, User
 from app.provider.llm.deepseek_provider import DeepSeekProvider
 
 logger = logging.getLogger(__name__)
@@ -145,15 +146,16 @@ def get_chat_history(
     chapter_id: int | None = None,
     limit: int = 50,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Return recent chat messages for a course (optionally filtered by chapter)."""
-    course = db.query(Course).filter(Course.id == course_id).first()
+    course = db.query(Course).filter(Course.id == course_id, Course.user_id == current_user.id).first()
     if not course:
         raise HTTPException(status_code=404, detail="课程不存在")
 
     q = (
         db.query(ChatMessage)
-        .filter(ChatMessage.course_id == course_id)
+        .filter(ChatMessage.course_id == course_id, ChatMessage.user_id == current_user.id)
         .order_by(ChatMessage.created_at.desc())
     )
     if chapter_id is not None:
@@ -174,9 +176,10 @@ async def send_chat_message(
     course_id: int,
     req: ChatRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Send a question and get an AI reply contextualized to the course."""
-    course = db.query(Course).filter(Course.id == course_id).first()
+    course = db.query(Course).filter(Course.id == course_id, Course.user_id == current_user.id).first()
     if not course:
         raise HTTPException(status_code=404, detail="课程不存在")
 
@@ -188,6 +191,7 @@ async def send_chat_message(
 
     # 1. Save user message
     user_msg = ChatMessage(
+        user_id=current_user.id,
         course_id=course_id,
         chapter_id=chapter_id,
         role="user",
@@ -203,7 +207,7 @@ async def send_chat_message(
     # 3. Fetch recent history (last 20 messages) for continuity
     recent = (
         db.query(ChatMessage)
-        .filter(ChatMessage.course_id == course_id)
+        .filter(ChatMessage.course_id == course_id, ChatMessage.user_id == current_user.id)
         .order_by(ChatMessage.created_at.desc())
         .limit(20)
         .all()
@@ -227,6 +231,7 @@ async def send_chat_message(
 
     # 6. Save assistant reply
     assistant_msg = ChatMessage(
+        user_id=current_user.id,
         course_id=course_id,
         chapter_id=chapter_id,
         role="assistant",
@@ -256,13 +261,14 @@ def clear_chat_history(
     course_id: int,
     chapter_id: int | None = None,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Delete chat messages for a course (optionally filtered by chapter)."""
-    course = db.query(Course).filter(Course.id == course_id).first()
+    course = db.query(Course).filter(Course.id == course_id, Course.user_id == current_user.id).first()
     if not course:
         raise HTTPException(status_code=404, detail="课程不存在")
 
-    q = db.query(ChatMessage).filter(ChatMessage.course_id == course_id)
+    q = db.query(ChatMessage).filter(ChatMessage.course_id == course_id, ChatMessage.user_id == current_user.id)
     if chapter_id is not None:
         q = q.filter(ChatMessage.chapter_id == chapter_id)
 

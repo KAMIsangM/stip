@@ -1,6 +1,5 @@
 """Modal generator registry."""
 
-from app.generator.modal.audio_generator import AudioGenerator
 from app.generator.modal.interactive_generator import InteractiveGenerator
 from app.generator.modal.mindmap_generator import MindMapGenerator
 from app.generator.modal.ppt_generator import PPTGenerator
@@ -13,7 +12,6 @@ _MODAL_REGISTRY: dict[str, type] = {
     "quiz": QuizGenerator,
     "ppt": PPTGenerator,
     "mindmap": MindMapGenerator,
-    "audio": AudioGenerator,
     "interactive_html": InteractiveGenerator,
 }
 
@@ -22,7 +20,6 @@ __all__ = [
     "QuizGenerator",
     "PPTGenerator",
     "MindMapGenerator",
-    "AudioGenerator",
     "InteractiveGenerator",
     "_MODAL_REGISTRY",
 ]

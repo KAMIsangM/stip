@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ title }}</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.2/anime.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  min-height: 100vh; padding: 30px; color: #e0e0e0;
+}
+.container { max-width: 960px; margin: 0 auto; }
+.header { text-align: center; margin-bottom: 20px; }
+.header h1 { color: #e94560; font-size: 26px; margin-bottom: 4px; }
+.header p { color: rgba(255,255,255,0.6); font-size: 14px; }
+
+.info-card {
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px; padding: 16px 20px; margin-bottom: 18px;
+}
+.info-card h3 { color: #e94560; font-size: 16px; margin-bottom: 4px; }
+.info-card p { color: #b0b0b0; font-size: 14px; line-height: 1.6; }
+
+.viz-area {
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px; padding: 16px 20px 10px; margin-bottom: 16px;
+  min-height: 400px; display: flex; flex-direction: column; align-items: center;
+}
+
+.tree { width: 100%; text-align: center; }
+
+.tn { display: inline-flex; align-items: center; justify-content: center;
+  text-align: center; font-size: 13px; font-weight: 600; color: #ccc;
+  transition: all 0.4s ease; flex-shrink: 0; position: relative; z-index: 2;
+}
+.tn.start { background: rgba(102,126,234,0.2); border: 2px solid rgba(102,126,234,0.4);
+  border-radius: 20px; padding: 8px 20px; font-size: 15px; }
+.tn.decision { background: rgba(255,165,2,0.15); border: 2px solid rgba(255,165,2,0.35);
+  border-radius: 8px; padding: 8px 16px; }
+.tn.result { background: rgba(46,213,115,0.12); border: 2px solid rgba(46,213,115,0.3);
+  border-radius: 12px; padding: 8px 16px; }
+
+.tn.active { box-shadow: 0 0 20px; transform: scale(1.06); z-index: 10; }
+.tn.start.active { background: rgba(102,126,234,0.45); border-color: #667eea; color: #fff; }
+.tn.decision.active { background: rgba(255,165,2,0.45); border-color: #ffa502; color: #fff; }
+.tn.result.active { background: rgba(46,213,115,0.4); border-color: #2ed573; color: #fff; }
+
+.tn.completed { opacity: 0.75; }
+.tn.start.completed { border-color: #4a5ecf; }
+.tn.decision.completed { border-color: #b8860b; }
+.tn.result.completed { border-color: #168940; }
+
+.tn.pulse { animation: pulse 1.5s infinite; }
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(233,69,96,0.2); }
+  50% { box-shadow: 0 0 24px rgba(233,69,96,0.75); }
+}
+
+.branch-group { display: flex; flex-direction: column; align-items: center; position: relative; }
+.branch-split { display: flex; justify-content: center; width: 100%; position: relative; min-height: 30px; }
+.branch-path { height: 32px; position: relative; }
+.branch-label { font-size: 11px; font-weight: bold; color: rgba(255,255,255,0.2); transition: all 0.4s; }
+.branch-label.visible { color: #2ed573; }
+.branch-label.visible-no { color: #e94560; }
+
+.br-v { width: 1px; min-height: 20px; background: rgba(255,255,255,0.12); margin: 0 auto; transition: all 0.4s; }
+.br-v.active { background: #e94560; box-shadow: 0 0 6px rgba(233,69,96,0.4); }
+.br-v.completed { background: #2ed573; }
+
+.flow-node {
+  background: rgba(233,69,96,0.15); border: 2px solid rgba(233,69,96,0.3);
+  border-radius: 10px; padding: 12px 20px; min-width: 100px;
+  text-align: center; font-size: 14px; color: #e0e0e0;
+  transition: all 0.4s ease; position: relative;
+}
+.flow-node.active {
+  background: rgba(233,69,96,0.4); border-color: #e94560;
+  box-shadow: 0 0 20px rgba(233,69,96,0.4); transform: scale(1.05);
+  z-index: 2;
+}
+.flow-node.completed {
+  background: rgba(46,213,115,0.2); border-color: #2ed573; opacity: 0.75;
+}
+.flow-node.current { animation: pulse 1.5s infinite; }
+
+.step-panel {
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(233,69,96,0.3);
+  border-radius: 10px; padding: 14px 18px; margin-top: 10px; width: 100%;
+  display: flex; align-items: center; gap: 12px;
+}
+.step-indicator {
+  background: #e94560; color: #fff; border-radius: 50%;
+  width: 34px; height: 34px; display: flex; align-items: center;
+  justify-content: center; font-weight: bold; font-size: 15px; flex-shrink: 0;
+}
+.step-text { font-size: 14px; color: #ccc; line-height: 1.5; }
+
+.controls {
+  display: flex; gap: 12px; justify-content: center;
+  flex-wrap: wrap; margin-bottom: 12px;
+}
+.btn {
+  padding: 10px 22px; border: none; border-radius: 25px;
+  font-size: 14px; cursor: pointer; transition: all 0.3s; font-weight: 600;
+}
+.btn-primary { background: #e94560; color: #fff; }
+.btn-primary:hover { background: #d63851; transform: translateY(-1px); }
+.btn-secondary { background: rgba(255,255,255,0.1); color: #ccc; }
+.btn-secondary:hover { background: rgba(255,255,255,0.2); }
+.btn-success { background: #2ed573; color: #fff; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.speed-control {
+  display: flex; align-items: center; gap: 10px;
+  justify-content: center; margin-bottom: 16px; color: rgba(255,255,255,0.6);
+}
+.speed-control input[type="range"] { width: 120px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>{{ title }}</h1>
+    <p>{{ description }}</p>
+  </div>
+  <div class="info-card">
+    <h3>📋 流程概述</h3>
+    <p>{{ explanation }}</p>
+  </div>
+  <div class="viz-area" id="vizArea"></div>
+  <div class="controls">
+    <button class="btn btn-primary" id="btnStart">▶ 开始演示</button>
+    <button class="btn btn-secondary" id="btnPrev">◀ 上一步</button>
+    <button class="btn btn-secondary" id="btnNext">下一步 ▶</button>
+    <button class="btn btn-success" id="btnAuto">⏩ 自动播放</button>
+    <button class="btn btn-secondary" id="btnReset">↻ 重置</button>
+  </div>
+  <div class="speed-control">
+    <label>⚡ 播放速度：</label>
+    <input type="range" id="speedSlider" min="300" max="3000" value="1200" step="50">
+    <span id="speedLabel">1200ms</span>
+  </div>
+</div>
+
+<script>
+// ===== Injected data =====
+const RAW_STEPS = {{ steps_json }};
+const STEP_DESC = {{ steps_descriptions_json }};
+const NODE_DEFS = {{ nodes_json }};
+
+// ===== Tree layout builder =====
+function buildTreeLayout() {
+  const area = document.getElementById('vizArea');
+  if (!NODE_DEFS || NODE_DEFS.length === 0) {
+    area.innerHTML = '<p style="text-align:center;color:#888;">无流程数据</p>'; return;
+  }
+
+  // Build tree from NODE_DEFS: [{id, text, type: 'start'|'decision'|'result'}]
+  const nodeMap = {};
+  NODE_DEFS.forEach(n => { nodeMap[n.id] = n; });
+
+  // STEP_ORDER defines traversal; build rows from tree structure
+  const stepOrder = STEP_DESC.map(s => s.id);
+
+  // Build simple vertical tree: each node gets its own row with branches as CSS
+  let html = '<div class="tree">';
+  let prevWasDecision = false;
+  let prevDecisionId = null;
+
+  for (let i = 0; i < stepOrder.length; i++) {
+    const nid = stepOrder[i];
+    const nd = nodeMap[nid];
+    if (!nd) continue;
+
+    if (i > 0) {
+      // Add down connector before each node (except first)
+      html += `<div class="branch-path"><div class="br-v" id="br_${stepOrder[i-1]}_${nid}"></div></div>`;
+    }
+
+    html += `<div class="tn ${nd.type || 'result'}" id="${nid}">${nd.text}</div>`;
+
+    // If this is a decision node, add yes/no branch labels
+    if (nd.type === 'decision') {
+      html += `<div class="branch-split" style="gap:24px;">
+        <div class="branch-label" id="lbl_yes_${nid}">▼ 是</div>
+        <div class="branch-label" id="lbl_no_${nid}">否 ▶</div>
+      </div>`;
+    }
+  }
+
+  // Step panel
+  html += `<div class="step-panel" id="stepPanel" style="display:none;">
+    <div class="step-indicator" id="stepIndicator">1</div>
+    <div class="step-text" id="stepDescription"></div>
+  </div>`;
+  html += '</div>';
+  area.innerHTML = html;
+}
+
+// ===== State =====
+let currentStep = -1;
+let completedNodes = [];
+let isAutoPlaying = false;
+let autoTimer = null;
+
+function resetState() {
+  currentStep = -1;
+  completedNodes = [];
+  document.querySelectorAll('.tn, .flow-node').forEach(el => {
+    el.classList.remove('active','completed','pulse','current');
+  });
+  document.querySelectorAll('.br-v, .branch-label').forEach(el => {
+    el.classList.remove('active','completed','visible','visible-no');
+  });
+  const panel = document.getElementById('stepPanel');
+  if (panel) panel.style.display = 'none';
+  stopAutoPlay();
+  updateButtons();
+}
+
+function applyStep(stepIdx) {
+  if (stepIdx < 0 || stepIdx >= STEP_DESC.length) return;
+  const sd = STEP_DESC[stepIdx];
+  const nid = sd.id;
+
+  // Clear active
+  document.querySelectorAll('.tn, .flow-node').forEach(el => {
+    el.classList.remove('active','pulse','current');
+  });
+
+  // Restore completed
+  completedNodes.forEach(cid => {
+    const el = document.getElementById(cid);
+    if (el) el.classList.add('completed');
+  });
+
+  // Set active
+  const activeEl = document.getElementById(nid);
+  if (activeEl) { activeEl.classList.add('active','pulse'); }
+
+  // Highlight connectors: all br_v to completed nodes get 'completed', br_v to active gets 'active'
+  document.querySelectorAll('.br-v').forEach(el => { el.classList.remove('active','completed'); });
+  document.querySelectorAll('.branch-label').forEach(el => { el.classList.remove('visible','visible-no'); });
+
+  // Activate branch labels if current is a decision node
+  const nd = NODE_DEFS.find(n => n.id === nid);
+  if (nd && nd.type === 'decision') {
+    const yesLbl = document.getElementById('lbl_yes_' + nid);
+    const noLbl = document.getElementById('lbl_no_' + nid);
+    if (yesLbl) yesLbl.classList.add('visible');
+    if (noLbl) noLbl.classList.add('visible-no');
+  }
+
+  // Mark connectors before active as completed
+  const stepOrder = STEP_DESC.map(s => s.id);
+  for (let i = 0; i < stepIdx; i++) {
+    const prevId = stepOrder[i];
+    const nextId = stepOrder[i+1];
+    if (nextId) {
+      const br = document.getElementById('br_' + prevId + '_' + nextId);
+      if (br) br.classList.add('completed');
+    }
+  }
+  // Mark connector to current as active
+  if (stepIdx > 0) {
+    const prevId = stepOrder[stepIdx - 1];
+    const br = document.getElementById('br_' + prevId + '_' + nid);
+    if (br) { br.classList.remove('completed'); br.classList.add('active'); }
+  }
+
+  // Panel
+  const panel = document.getElementById('stepPanel');
+  if (panel) {
+    panel.style.display = 'flex';
+    document.getElementById('stepIndicator').textContent = stepIdx + 1;
+    document.getElementById('stepDescription').textContent = sd.desc || '';
+  }
+
+  currentStep = stepIdx;
+  completedNodes = stepOrder.slice(0, stepIdx + 1);
+  updateButtons();
+}
+
+function updateButtons() {
+  const prev = document.getElementById('btnPrev');
+  const next = document.getElementById('btnNext');
+  if (prev) prev.disabled = currentStep <= 0;
+  if (next) next.disabled = currentStep >= STEP_DESC.length - 1;
+}
+
+function nextStep() {
+  if (currentStep < STEP_DESC.length - 1) applyStep(currentStep + 1);
+}
+function prevStep() {
+  if (currentStep > 0) applyStep(currentStep - 1);
+  else resetState();
+}
+function startAnimation() {
+  resetState();
+  setTimeout(() => applyStep(0), 300);
+}
+function toggleAutoPlay() {
+  const btn = document.getElementById('btnAuto');
+  if (isAutoPlaying) {
+    stopAutoPlay();
+    if (btn) btn.textContent = '⏩ 自动播放';
+  } else {
+    if (currentStep >= STEP_DESC.length - 1) resetState();
+    isAutoPlaying = true;
+    if (btn) btn.textContent = '⏸ 暂停';
+    autoPlayLoop();
+  }
+}
+function autoPlayLoop() {
+  if (!isAutoPlaying) return;
+  if (currentStep >= STEP_DESC.length - 1) {
+    stopAutoPlay();
+    const btn = document.getElementById('btnAuto');
+    if (btn) btn.textContent = '⏩ 自动播放';
+    return;
+  }
+  nextStep();
+  autoTimer = setTimeout(autoPlayLoop, parseInt(document.getElementById('speedSlider').value) + 300);
+}
+function stopAutoPlay() {
+  isAutoPlaying = false;
+  if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
+}
+
+document.getElementById('speedSlider').addEventListener('input', function() {
+  document.getElementById('speedLabel').textContent = this.value + 'ms';
+});
+document.getElementById('btnStart').addEventListener('click', startAnimation);
+document.getElementById('btnPrev').addEventListener('click', prevStep);
+document.getElementById('btnNext').addEventListener('click', nextStep);
+document.getElementById('btnAuto').addEventListener('click', toggleAutoPlay);
+document.getElementById('btnReset').addEventListener('click', resetState);
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'ArrowRight') { e.preventDefault(); nextStep(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); prevStep(); }
+  else if (e.key === ' ') { e.preventDefault(); toggleAutoPlay(); }
+});
+
+// Init
+buildTreeLayout();
+updateButtons();
+</script>
+</body>
+</html>

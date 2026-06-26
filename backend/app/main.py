@@ -4,7 +4,7 @@ from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api import chat, content, course, knowledge, voice
+from app.api import auth, chat, content, course, knowledge, voice
 from app.core.config import get_assets_root, get_settings
 
 # Ensure all application loggers are visible
@@ -44,6 +44,7 @@ app.add_middleware(
 
 app.mount("/assets", StaticFiles(directory=str(assets_root)), name="assets")
 
+app.include_router(auth.router, prefix="/api/v1")
 app.include_router(course.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(knowledge.router, prefix="/api/v1")

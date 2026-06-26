@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>线性排序适用条件判断</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.2/anime.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  min-height: 100vh; padding: 30px; color: #e0e0e0;
+}
+.container { max-width: 960px; margin: 0 auto; }
+.header { text-align: center; margin-bottom: 20px; }
+.header h1 { color: #e94560; font-size: 26px; margin-bottom: 4px; }
+.header p { color: rgba(255,255,255,0.6); font-size: 14px; }
+
+.info-card {
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px; padding: 16px 20px; margin-bottom: 18px;
+}
+.info-card h3 { color: #e94560; font-size: 16px; margin-bottom: 4px; }
+.info-card p { color: #b0b0b0; font-size: 14px; line-height: 1.6; }
+
+.viz-area {
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px; padding: 16px 20px 10px; margin-bottom: 16px;
+  min-height: 400px; display: flex; flex-direction: column; align-items: center;
+}
+
+/* ===== TREE LAYOUT ===== */
+.tree { width: 100%; text-align: center; }
+.tree-row { display: flex; justify-content: center; align-items: flex-start; margin-bottom: 0; position: relative; }
+
+/* Node base */
+.tn { display: inline-flex; align-items: center; justify-content: center;
+  text-align: center; font-size: 13px; font-weight: 600; color: #ccc;
+  transition: all 0.4s ease; flex-shrink: 0; position: relative; z-index: 2;
+}
+.tn.start { background: rgba(102,126,234,0.2); border: 2px solid rgba(102,126,234,0.4);
+  border-radius: 20px; padding: 8px 20px; font-size: 15px; }
+.tn.decision { background: rgba(255,165,2,0.15); border: 2px solid rgba(255,165,2,0.35);
+  border-radius: 8px; padding: 8px 16px; }
+.tn.result { background: rgba(46,213,115,0.12); border: 2px solid rgba(46,213,115,0.3);
+  border-radius: 12px; padding: 8px 16px; }
+
+.tn.active { box-shadow: 0 0 20px; transform: scale(1.06); z-index: 10; }
+.tn.start.active { background: rgba(102,126,234,0.45); border-color: #667eea; color: #fff; }
+.tn.decision.active { background: rgba(255,165,2,0.45); border-color: #ffa502; color: #fff; }
+.tn.result.active { background: rgba(46,213,115,0.4); border-color: #2ed573; color: #fff; }
+
+.tn.completed { opacity: 0.75; }
+.tn.start.completed { border-color: #4a5ecf; }
+.tn.decision.completed { border-color: #b8860b; }
+.tn.result.completed { border-color: #168940; }
+
+.tn.pulse { animation: pulse 1.5s infinite; }
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(233,69,96,0.2); }
+  50% { box-shadow: 0 0 24px rgba(233,69,96,0.75); }
+}
+
+/* Branch connectors — CSS-only */
+.branch-group { display: flex; flex-direction: column; align-items: center; position: relative; }
+.branch-split { display: flex; justify-content: center; width: 100%; position: relative; min-height: 30px; }
+.branch-path { height: 32px; position: relative; }
+.branch-label { font-size: 11px; font-weight: bold; color: rgba(255,255,255,0.25); transition: all 0.4s; }
+.branch-label.visible { color: #2ed573; }
+.branch-label.visible-no { color: #e94560; }
+
+/* Horizontal rule for branch */
+.br-h {
+  display: flex; align-items: center; gap: 0;
+  padding: 0 16px;
+}
+.br-v { width: 1px; min-height: 20px; background: rgba(255,255,255,0.12); margin: 0 auto; transition: all 0.4s; }
+.br-v.active { background: #e94560; box-shadow: 0 0 6px rgba(233,69,96,0.4); }
+.br-v.completed { background: #2ed573; }
+
+/* Step panel */
+.step-panel {
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(233,69,96,0.3);
+  border-radius: 10px; padding: 14px 18px; margin-top: 10px; width: 100%;
+  display: flex; align-items: center; gap: 12px;
+}
+.step-indicator {
+  background: #e94560; color: #fff; border-radius: 50%;
+  width: 34px; height: 34px; display: flex; align-items: center;
+  justify-content: center; font-weight: bold; font-size: 15px; flex-shrink: 0;
+}
+.step-text { font-size: 14px; color: #ccc; line-height: 1.5; }
+
+.controls {
+  display: flex; gap: 12px; justify-content: center;
+  flex-wrap: wrap; margin-bottom: 12px;
+}
+.btn {
+  padding: 10px 22px; border: none; border-radius: 25px;
+  font-size: 14px; cursor: pointer; transition: all 0.3s; font-weight: 600;
+}
+.btn-primary { background: #e94560; color: #fff; }
+.btn-primary:hover { background: #d63851; transform: translateY(-1px); }
+.btn-secondary { background: rgba(255,255,255,0.1); color: #ccc; }
+.btn-secondary:hover { background: rgba(255,255,255,0.2); }
+.btn-success { background: #2ed573; color: #fff; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.speed-control {
+  display: flex; align-items: center; gap: 10px;
+  justify-content: center; margin-bottom: 16px; color: rgba(255,255,255,0.6);
+}
+.speed-control input[type="range"] { width: 120px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>线性排序适用条件判断</h1>
+    <p>决策树 — 根据数据特征选择最优排序算法</p>
+  </div>
+
+  <div class="info-card">
+    <h3>📋 流程概述</h3>
+    <p>线性排序（计数排序、基数排序、桶排序）时间复杂度为O(n)，但有适用条件。本决策树帮助判断何时选择线性排序：先检查数据类型，再依次判断取值范围与分布特征，最终推荐最合适的算法。点击「开始演示」或按 → 键逐步查看。</p>
+  </div>
+
+  <div class="viz-area" id="vizArea">
+    <!-- Tree built by JS -->
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-primary" id="btnStart">▶ 开始演示</button>
+    <button class="btn btn-secondary" id="btnPrev">◀ 上一步</button>
+    <button class="btn btn-secondary" id="btnNext">下一步 ▶</button>
+    <button class="btn btn-success" id="btnAuto">⏩ 自动播放</button>
+    <button class="btn btn-secondary" id="btnReset">↻ 重置</button>
+  </div>
+
+  <div class="speed-control">
+    <label>⚡ 播放速度：</label>
+    <input type="range" id="speedSlider" min="300" max="3000" value="1200" step="50">
+    <span id="speedLabel">1200ms</span>
+  </div>
+</div>
+
+<script>
+// ===== Data =====
+const STEP_DATA = [
+  { id: 'n0', desc: '开始节点：准备判断数据特征，依次评估整数性、取值范围和分布情况。' },
+  { id: 'n1', desc: '决策①：元素是否为整数或可映射为整数？——这是线性排序的基本前提。' },
+  { id: 'n4', desc: '否 → 不满足整数条件。线性排序（计数/基数/桶排序）要求整数或可映射类型，建议使用<比较排序>（如快速排序 O(n log n)）。' },
+  { id: 'n2', desc: '是 → 满足整数条件。决策②：元素取值范围是否已知且较小（k值不大）？' },
+  { id: 'n5', desc: '是 → 范围小且已知，最适合<计数排序>（O(n+k)，k为值域大小，适用于小范围整数）。' },
+  { id: 'n3', desc: '否 → 范围较大或未知。决策③：元素分布是否近似均匀？' },
+  { id: 'n6', desc: '是 → 分布均匀，推荐<桶排序>（O(n)，将元素均匀映射到k个桶中，适合均匀分布数据）。' },
+  { id: 'n7', desc: '否 → 分布不均匀但为多位数整数，推荐<基数排序>（LSD/MSD，O(d·n)，按位逐轮排序，适用于多位数整数）。' },
+];
+
+const NODE_DEFS = {
+  n0: { text: '开 始', css: 'start' },
+  n1: { text: '元素为整数 / 可映射？', css: 'decision' },
+  n2: { text: '取值范围小且已知？', css: 'decision' },
+  n3: { text: '元素分布均匀？', css: 'decision' },
+  n4: { text: '比较排序（如快排）', css: 'result' },
+  n5: { text: '计数排序', css: 'result' },
+  n6: { text: '桶排序', css: 'result' },
+  n7: { text: '基数排序', css: 'result' },
+};
+
+// Build static tree structure in HTML
+function buildTree() {
+  const area = document.getElementById('vizArea');
+  // Remove existing step panel from tree rebuild
+  const oldPanel = area.querySelector('.step-panel');
+  if (oldPanel) oldPanel.remove();
+
+  area.innerHTML = `<div class="tree">
+    <!-- Row 0: Start -->
+    <div class="tree-row">
+      <div class="tn start" id="n0">${NODE_DEFS.n0.text}</div>
+    </div>
+    <!-- Down arrow -->
+    <div class="branch-path"><div class="br-v" id="br_0_1"></div></div>
+    <!-- Row 1: Decision 1 -->
+    <div class="tree-row">
+      <div class="tn decision" id="n1">${NODE_DEFS.n1.text}</div>
+    </div>
+    <!-- Branch from decision 1: (否→right)  (是→down) -->
+    <div class="branch-split" style="gap:16px;">
+      <div style="display:flex;flex-direction:column;align-items:center;">
+        <div class="branch-label" id="lbl_yes_1">▼ 是</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;">
+        <div class="branch-label" id="lbl_no_1">否 ▶</div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:center;gap:20px;width:100%;">
+      <!-- Left column: 是 path continues down -->
+      <div style="display:flex;flex-direction:column;align-items:center;min-width:200px;">
+        <div class="branch-path"><div class="br-v" id="br_1_2"></div></div>
+        <!-- Row 2: Decision 2 -->
+        <div class="tn decision" id="n2">${NODE_DEFS.n2.text}</div>
+        <!-- Branch from decision 2 -->
+        <div class="branch-split" style="gap:16px;">
+          <div class="branch-label" id="lbl_yes_2">▼ 是</div>
+          <div class="branch-label" id="lbl_no_2">否 ▶</div>
+        </div>
+        <div style="display:flex;justify-content:center;gap:16px;width:100%;">
+          <div style="display:flex;flex-direction:column;align-items:center;">
+            <div class="branch-path"><div class="br-v" id="br_2_3"></div></div>
+            <!-- Row 3: Decision 3 -->
+            <div class="tn decision" id="n3">${NODE_DEFS.n3.text}</div>
+            <div class="branch-split" style="gap:16px;">
+              <div class="branch-label" id="lbl_yes_3">▼ 是</div>
+              <div class="branch-label" id="lbl_no_3">否 ▶</div>
+            </div>
+            <div style="display:flex;gap:16px;align-items:flex-start;">
+              <div style="display:flex;flex-direction:column;align-items:center;">
+                <div class="branch-path"><div class="br-v" id="br_3_7"></div></div>
+                <div class="tn result" id="n7">${NODE_DEFS.n7.text}</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:center;">
+                <div class="branch-path"><div class="br-v" id="br_3_6"></div></div>
+                <div class="tn result" id="n6">${NODE_DEFS.n6.text}</div>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;">
+            <div class="branch-path"><div class="br-v" id="br_2_5"></div></div>
+            <div class="tn result" id="n5">${NODE_DEFS.n5.text}</div>
+          </div>
+        </div>
+      </div>
+      <!-- Right column: 否 → 比较排序 -->
+      <div style="display:flex;flex-direction:column;align-items:center;min-width:180px;">
+        <div class="branch-path"><div class="br-v" id="br_1_4"></div></div>
+        <div class="tn result" id="n4">${NODE_DEFS.n4.text}</div>
+      </div>
+    </div>
+
+    <!-- Step panel (hidden initially) -->
+    <div class="step-panel" id="stepPanel" style="display:none;margin-top:16px;">
+      <div class="step-indicator" id="stepIndicator">1</div>
+      <div class="step-text" id="stepDescription"></div>
+    </div>
+  </div>`;
+}
+
+// ----- State -----
+let currentStep = -1;
+let completedIds = [];
+let isAutoPlaying = false;
+let autoTimer = null;
+
+// ----- Draw logic -----
+// Highlighted connectors per step (br_* ids)
+const CONN_MAP = {
+  n0: { active: ['br_0_1'] },
+  n1: { active: ['br_1_2','br_1_4','lbl_yes_1','lbl_no_1'] },
+  n4: { active: ['br_1_4','lbl_no_1'] },
+  n2: { active: ['br_1_2','br_2_3','br_2_5','lbl_yes_1','lbl_yes_2','lbl_no_2'] },
+  n5: { active: ['br_2_5','lbl_yes_2'] },
+  n3: { active: ['br_2_3','br_3_6','br_3_7','lbl_no_2','lbl_yes_3','lbl_no_3'] },
+  n6: { active: ['br_3_6','lbl_yes_3'] },
+  n7: { active: ['br_3_7','lbl_no_3'] },
+};
+
+const ALL_BR_IDS = ['br_0_1','br_1_2','br_1_4','br_2_3','br_2_5','br_3_6','br_3_7'];
+const ALL_LBL_IDS = ['lbl_yes_1','lbl_no_1','lbl_yes_2','lbl_no_2','lbl_yes_3','lbl_no_3'];
+
+function resetAllConnectors() {
+  ALL_BR_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.classList.remove('active','completed'); }
+  });
+  ALL_LBL_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.classList.remove('visible','visible-no'); }
+  });
+}
+
+function applyConnectors(nodeId) {
+  resetAllConnectors();
+  const cfg = CONN_MAP[nodeId];
+  if (!cfg) return;
+  // Active connectors
+  (cfg.active || []).forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (id.startsWith('lbl_')) {
+      // 否 labels in red, 是 labels in green
+      if (id.includes('_no_')) el.classList.add('visible-no');
+      else el.classList.add('visible');
+    } else {
+      el.classList.add('active');
+    }
+  });
+  // Completed connectors: all edges to completed nodes
+  for (let i = 0; i < STEP_DATA.length; i++) {
+    const sd = STEP_DATA[i];
+    if (sd.id === nodeId) break;
+    const cc = CONN_MAP[sd.id];
+    if (!cc) continue;
+    (cc.active || []).forEach(id => {
+      if (id.startsWith('lbl_')) return;
+      const el = document.getElementById(id);
+      if (el && !el.classList.contains('active')) {
+        el.classList.add('completed');
+      }
+    });
+  }
+}
+
+function resetState() {
+  currentStep = -1;
+  completedIds = [];
+  document.querySelectorAll('.tn').forEach(el => {
+    el.classList.remove('active','completed','pulse');
+  });
+  resetAllConnectors();
+  const panel = document.getElementById('stepPanel');
+  if (panel) panel.style.display = 'none';
+  stopAutoPlay();
+  updateButtons();
+}
+
+function applyStep(stepIdx) {
+  if (stepIdx < 0 || stepIdx >= STEP_DATA.length) return;
+  const { id, desc } = STEP_DATA[stepIdx];
+
+  // Clear active, keep completed
+  document.querySelectorAll('.tn').forEach(el => {
+    el.classList.remove('active','pulse');
+    if (completedIds.includes(el.id)) el.classList.add('completed');
+  });
+
+  // Set active node
+  const activeEl = document.getElementById(id);
+  if (activeEl) {
+    activeEl.classList.remove('completed');
+    activeEl.classList.add('active','pulse');
+  }
+
+  // Connectors
+  applyConnectors(id);
+
+  // Panel
+  const panel = document.getElementById('stepPanel');
+  if (panel) {
+    panel.style.display = 'flex';
+    document.getElementById('stepIndicator').textContent = stepIdx + 1;
+    document.getElementById('stepDescription').textContent = desc;
+  }
+
+  currentStep = stepIdx;
+  completedIds = STEP_DATA.slice(0, stepIdx + 1).map(s => s.id);
+  updateButtons();
+}
+
+function updateButtons() {
+  const prev = document.getElementById('btnPrev');
+  const next = document.getElementById('btnNext');
+  if (prev) prev.disabled = currentStep <= 0;
+  if (next) next.disabled = currentStep >= STEP_DATA.length - 1;
+}
+
+function nextStep() {
+  if (currentStep < STEP_DATA.length - 1) applyStep(currentStep + 1);
+}
+function prevStep() {
+  if (currentStep > 0) applyStep(currentStep - 1);
+  else resetState();
+}
+function startAnim() {
+  resetState();
+  setTimeout(() => applyStep(0), 300);
+}
+
+function toggleAutoPlay() {
+  const btn = document.getElementById('btnAuto');
+  if (isAutoPlaying) {
+    stopAutoPlay();
+    if (btn) btn.textContent = '⏩ 自动播放';
+  } else {
+    if (currentStep >= STEP_DATA.length - 1) resetState();
+    isAutoPlaying = true;
+    if (btn) btn.textContent = '⏸ 暂停';
+    autoPlayLoop();
+  }
+}
+function autoPlayLoop() {
+  if (!isAutoPlaying) return;
+  if (currentStep >= STEP_DATA.length - 1) {
+    stopAutoPlay();
+    const btn = document.getElementById('btnAuto');
+    if (btn) btn.textContent = '⏩ 自动播放';
+    return;
+  }
+  nextStep();
+  const speed = parseInt(document.getElementById('speedSlider').value);
+  autoTimer = setTimeout(autoPlayLoop, speed + 300);
+}
+function stopAutoPlay() {
+  isAutoPlaying = false;
+  if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
+}
+
+// Listeners
+document.getElementById('speedSlider').addEventListener('input', function() {
+  document.getElementById('speedLabel').textContent = this.value + 'ms';
+});
+document.getElementById('btnStart').addEventListener('click', startAnim);
+document.getElementById('btnPrev').addEventListener('click', prevStep);
+document.getElementById('btnNext').addEventListener('click', nextStep);
+document.getElementById('btnAuto').addEventListener('click', toggleAutoPlay);
+document.getElementById('btnReset').addEventListener('click', resetState);
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'ArrowRight') { e.preventDefault(); nextStep(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); prevStep(); }
+  else if (e.key === ' ') { e.preventDefault(); toggleAutoPlay(); }
+});
+
+// Init
+buildTree();
+updateButtons();
+</script>
+</body>
+</html>

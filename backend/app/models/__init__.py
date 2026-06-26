@@ -1,6 +1,6 @@
 from datetime import datetime, timezone, timedelta
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -14,10 +14,26 @@ def _now_cst() -> datetime:
     return datetime.now(CST).replace(tzinfo=None)
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
+    email: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
+    hashed_password: Mapped[str] = mapped_column(String(200), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=_now_cst
+    )
+
+    courses: Mapped[list["Course"]] = relationship(back_populates="user")
+    chat_messages: Mapped[list["ChatMessage"]] = relationship(back_populates="user")
+
+
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), nullable=False)
     chapter_id: Mapped[int | None] = mapped_column(ForeignKey("chapters.id"), nullable=True)
     role: Mapped[str] = mapped_column(String(20), nullable=False)  # "user" or "assistant"
@@ -26,11 +42,14 @@ class ChatMessage(Base):
         DateTime, nullable=False, default=_now_cst
     )
 
+    user: Mapped["User"] = relationship(back_populates="chat_messages")
+
 
 class Course(Base):
     __tablename__ = "courses"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
@@ -41,6 +60,7 @@ class Course(Base):
         DateTime, nullable=False, default=_now_cst, onupdate=_now_cst
     )
 
+    user: Mapped["User"] = relationship(back_populates="courses")
     chapters: Mapped[list["Chapter"]] = relationship(
         back_populates="course", cascade="all, delete-orphan"
     )

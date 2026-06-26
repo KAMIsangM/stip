@@ -215,7 +215,7 @@ _NODE_TYPE_MODAL_MAP: dict[str, list[str]] = {
     "技能": ["text", "quiz", "interactive_html"],
     "记忆": ["text", "quiz"],
     "实践": ["interactive_html", "quiz"],
-    "综合": ["ppt", "audio", "mindmap"],
+    "综合": ["ppt", "mindmap"],
 }
 
 _DEFAULT_MODALS = ["text", "mindmap"]
@@ -297,6 +297,7 @@ class CourseService:
         title: str,
         description: str | None = None,
         preset_id: int | None = None,
+        user_id: int | None = None,
     ) -> dict[str, Any]:
         """Create a course and generate syllabus via LLM.
 
@@ -312,8 +313,22 @@ class CourseService:
         9. Update progress → done, status → "outlined"
         10. Return full course data with scene_plan
         """
+        if user_id is None:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail="用户未认证，无法创建课程")
+
+        # Step 0: Check for duplicate course title
+        existing = self._course_repo.get_by_title(title, user_id=user_id)
+        if existing:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=409,
+                detail=f"同名课程「{title}」已存在（ID: {existing.id}），请直接使用已有课程或修改课程名称。",
+            )
+
         # Step 1: Create course record
         course = self._course_repo.create(
+            user_id=user_id,
             title=title,
             description=description,
             status="draft",
@@ -479,11 +494,12 @@ class CourseService:
         page_size: int = 10,
         status: str | None = None,
         keyword: str | None = None,
+        user_id: int | None = None,
     ) -> dict[str, Any]:
         """Paginated course list with optional filtering."""
         skip = max(0, (page - 1) * page_size)
 
-        all_courses = self._course_repo.list_all(skip=0, limit=10_000)
+        all_courses = self._course_repo.list_all(skip=0, limit=10_000, user_id=user_id)
 
         filtered = all_courses
         if status:

@@ -71,9 +71,13 @@ server:
 export:
   pptx: python-pptx
 
+auth:
+  jwt_secret_key: "sitp-jwt-secret-change-in-production-2026"
+  jwt_algorithm: HS256
+  jwt_access_token_expire_minutes: 480
+
 NOT_DOING_MVP:
   - neo4j
   - celery
   - redis
-  - user_auth
   - image_generation_api

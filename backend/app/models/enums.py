@@ -30,7 +30,6 @@ class ModalType(str, enum.Enum):
     QUIZ = "quiz"
     PPT = "ppt"
     NARRATION = "narration"
-    AUDIO = "audio"
     MINDMAP = "mindmap"
     INTERACTIVE_HTML = "interactive_html"
     KNOWLEDGE_GRAPH = "knowledge_graph"

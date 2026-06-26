@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第5章引言 - 学习流程</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.2/anime.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  min-height: 100vh; padding: 30px; color: #e0e0e0;
+}
+.container { max-width: 960px; margin: 0 auto; }
+.header { text-align: center; margin-bottom: 25px; }
+.header h1 { color: #e94560; font-size: 28px; margin-bottom: 6px; }
+.header p { color: rgba(255,255,255,0.6); font-size: 14px; }
+
+.info-card {
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px; padding: 18px; margin-bottom: 20px;
+}
+.info-card h3 { color: #e94560; font-size: 17px; margin-bottom: 6px; }
+.info-card p { color: #b0b0b0; font-size: 14px; line-height: 1.6; }
+
+.viz-area {
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px; padding: 30px; margin-bottom: 20px;
+  min-height: 400px; position: relative;
+}
+
+/* Flowchart nodes */
+.flowchart {
+  display: flex; flex-direction: column; align-items: center; gap: 0;
+  padding: 10px 0;
+}
+.flow-row {
+  display: flex; align-items: center; gap: 16px;
+  margin-bottom: 4px;
+}
+.flow-node {
+  background: rgba(233,69,96,0.15); border: 2px solid rgba(233,69,96,0.3);
+  border-radius: 10px; padding: 12px 20px; min-width: 120px;
+  text-align: center; font-size: 14px; color: #e0e0e0;
+  transition: all 0.4s ease; position: relative;
+}
+.flow-node.active {
+  background: rgba(233,69,96,0.4); border-color: #e94560;
+  box-shadow: 0 0 20px rgba(233,69,96,0.4); transform: scale(1.05);
+  z-index: 2;
+}
+.flow-node.completed {
+  background: rgba(46,213,115,0.2); border-color: #2ed573;
+}
+.flow-node.current {
+  background: rgba(233,69,96,0.4); border-color: #e94560;
+  animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(233,69,96,0.3); }
+  50% { box-shadow: 0 0 25px rgba(233,69,96,0.7); }
+}
+
+.flow-arrow-down {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 2px 0;
+}
+.flow-arrow-down svg { width: 24px; height: 30px; }
+.flow-arrow-down svg line { stroke: rgba(233,69,96,0.4); stroke-width: 2; }
+.flow-arrow-down svg line.active { stroke: #e94560; stroke-width: 3; }
+
+.flow-branch {
+  display: flex; gap: 40px; justify-content: center;
+  position: relative;
+}
+.flow-branch-col {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+
+/* Decision diamond */
+.flow-node.diamond {
+  border-radius: 2px; transform: rotate(0deg);
+  background: rgba(255,165,2,0.15); border-color: rgba(255,165,2,0.4);
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  padding: 24px 30px;
+}
+.flow-node.diamond.active {
+  background: rgba(255,165,2,0.4); border-color: #ffa502;
+  box-shadow: 0 0 20px rgba(255,165,2,0.4);
+}
+
+/* Step description */
+.step-panel {
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(233,69,96,0.3);
+  border-radius: 10px; padding: 16px 20px; margin-top: 20px;
+  display: flex; align-items: center; gap: 12px;
+}
+.step-indicator {
+  background: #e94560; color: #fff; border-radius: 50%;
+  width: 36px; height: 36px; display: flex; align-items: center;
+  justify-content: center; font-weight: bold; font-size: 16px;
+  flex-shrink: 0;
+}
+.step-text { font-size: 15px; color: #ccc; line-height: 1.5; }
+
+.controls {
+  display: flex; gap: 12px; justify-content: center;
+  flex-wrap: wrap; margin-bottom: 15px;
+}
+.btn {
+  padding: 10px 24px; border: none; border-radius: 25px;
+  font-size: 14px; cursor: pointer; transition: all 0.3s;
+  font-weight: 600;
+}
+.btn-primary { background: #e94560; color: #fff; }
+.btn-primary:hover { background: #d63851; transform: translateY(-1px); }
+.btn-secondary { background: rgba(255,255,255,0.1); color: #ccc; }
+.btn-secondary:hover { background: rgba(255,255,255,0.2); }
+.btn-success { background: #2ed573; color: #fff; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.speed-control {
+  display: flex; align-items: center; gap: 10px;
+  justify-content: center; margin-bottom: 20px; color: rgba(255,255,255,0.6);
+}
+.speed-control input[type="range"] { width: 120px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>第5章引言 - 学习流程</h1>
+    <p>第5章引言的学习步骤演示</p>
+  </div>
+
+  <div class="info-card">
+    <h3>📋 流程概述</h3>
+    <p>本节将逐步学习第5章引言的核心概念和应用方法。通过分步演示，帮助理解每个关键环节。</p>
+  </div>
+
+  <div class="viz-area">
+    <div class="flowchart" id="flowchartContainer"></div>
+    <div class="step-panel" id="stepPanel" style="display:none;">
+      <div class="step-indicator" id="stepIndicator">1</div>
+      <div class="step-text" id="stepDescription">流程说明</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-primary" id="btnStart">▶ 开始演示</button>
+    <button class="btn btn-secondary" id="btnPrev">◀ 上一步</button>
+    <button class="btn btn-secondary" id="btnNext">下一步 ▶</button>
+    <button class="btn btn-success" id="btnAuto">⏩ 自动播放</button>
+    <button class="btn btn-secondary" id="btnReset">↻ 重置</button>
+  </div>
+
+  <div class="speed-control">
+    <label>⚡ 播放速度：</label>
+    <input type="range" id="speedSlider" min="300" max="3000" value="1200" step="50">
+    <span id="speedLabel">1200ms</span>
+  </div>
+</div>
+
+<script>
+const ANIMATION_STEPS = [{"nodes": [{"label": "理解第5章引言概念", "type": "normal"}, {"label": "掌握核心原理", "type": "normal"}, {"label": "实践应用", "type": "normal"}, {"label": "总结回顾", "type": "normal"}], "max_cols": 1, "highlight_index": 0, "completed_indices": [], "description": "第一步：理解基本概念定义"}, {"nodes": [{"label": "理解第5章引言概念", "type": "normal"}, {"label": "掌握核心原理", "type": "normal"}, {"label": "实践应用", "type": "normal"}, {"label": "总结回顾", "type": "normal"}], "max_cols": 1, "highlight_index": 1, "completed_indices": [0], "description": "第二步：深入学习核心原理"}, {"nodes": [{"label": "理解第5章引言概念", "type": "normal"}, {"label": "掌握核心原理", "type": "normal"}, {"label": "实践应用", "type": "normal"}, {"label": "总结回顾", "type": "normal"}], "max_cols": 1, "highlight_index": 2, "completed_indices": [0, 1], "description": "第三步：通过实践巩固知识"}, {"nodes": [{"label": "理解第5章引言概念", "type": "normal"}, {"label": "掌握核心原理", "type": "normal"}, {"label": "实践应用", "type": "normal"}, {"label": "总结回顾", "type": "normal"}], "max_cols": 1, "highlight_index": 3, "completed_indices": [0, 1, 2], "description": "第四步：总结归纳，形成知识体系"}];
+let currentStep = -1;
+let isAutoPlaying = false;
+let autoTimer = null;
+
+function buildFlowchart() {
+  const container = document.getElementById('flowchartContainer');
+  const step = ANIMATION_STEPS.length > 0 ? ANIMATION_STEPS[0] : null;
+  if (!step || !step.nodes) { container.innerHTML = '<p style="text-align:center;color:#888;">无流程数据</p>'; return; }
+  
+  container.innerHTML = '';
+  const nodes = step.nodes;
+  const maxCols = step.max_cols || 1;
+  
+  let html = '';
+  let nodeIdx = 0;
+  
+  for (let row = 0; nodeIdx < nodes.length; row++) {
+    const rowNodes = nodes.slice(nodeIdx, nodeIdx + maxCols);
+    nodeIdx += rowNodes.length;
+    
+    html += '<div class="flow-row">';
+    rowNodes.forEach((node, ci) => {
+      const typeClass = node.type === 'decision' ? ' diamond' : '';
+      html += `<div class="flow-node${typeClass}" data-node="${ci}" data-row="${row}">${node.label}</div>`;
+    });
+    html += '</div>';
+    
+    // Arrow down
+    if (nodeIdx < nodes.length) {
+      html += `<div class="flow-arrow-down">
+        <svg viewBox="0 0 24 30"><line x1="12" y1="2" x2="12" y2="26" class="arrow-line"/><polygon points="5,20 12,28 19,20" fill="rgba(233,69,96,0.4)"/></svg>
+      </div>`;
+    }
+  }
+  
+  container.innerHTML = html;
+}
+
+function resetState() {
+  currentStep = -1;
+  buildFlowchart();
+  document.getElementById('stepPanel').style.display = 'none';
+  stopAutoPlay();
+  updateButtons();
+}
+
+function applyStep(stepIdx) {
+  if (stepIdx < 0 || stepIdx >= ANIMATION_STEPS.length) return;
+  const step = ANIMATION_STEPS[stepIdx];
+  
+  // Remove all active/completed classes
+  document.querySelectorAll('.flow-node').forEach(el => {
+    el.classList.remove('active', 'completed', 'current');
+  });
+  
+  // Apply highlight
+  const allNodes = document.querySelectorAll('.flow-node');
+  if (step.highlight_index !== undefined && allNodes[step.highlight_index]) {
+    allNodes[step.highlight_index].classList.add('active', 'current');
+  }
+  
+  // Apply completed
+  if (step.completed_indices) {
+    step.completed_indices.forEach(i => {
+      if (allNodes[i]) allNodes[i].classList.add('completed');
+    });
+  }
+  
+  // Arrow highlights
+  document.querySelectorAll('.arrow-line').forEach(el => el.classList.remove('active'));
+  if (step.highlight_arrow !== undefined) {
+    const arrows = document.querySelectorAll('.arrow-line');
+    if (arrows[step.highlight_arrow]) arrows[step.highlight_arrow].classList.add('active');
+  }
+  
+  // Update step panel
+  const panel = document.getElementById('stepPanel');
+  panel.style.display = 'flex';
+  document.getElementById('stepIndicator').textContent = stepIdx + 1;
+  document.getElementById('stepDescription').textContent = step.description || '';
+  
+  currentStep = stepIdx;
+  updateButtons();
+}
+
+function updateButtons() {
+  document.getElementById('btnPrev').disabled = currentStep <= 0;
+  document.getElementById('btnNext').disabled = currentStep >= ANIMATION_STEPS.length - 1;
+}
+
+function nextStep() {
+  if (currentStep < ANIMATION_STEPS.length - 1) applyStep(currentStep + 1);
+}
+function prevStep() {
+  if (currentStep > 0) applyStep(currentStep - 1);
+  else if (currentStep === 0) resetState();
+}
+
+function startAnimation() {
+  resetState();
+  setTimeout(() => nextStep(), 300);
+}
+
+function toggleAutoPlay() {
+  if (isAutoPlaying) {
+    stopAutoPlay();
+    document.getElementById('btnAuto').textContent = '⏩ 自动播放';
+  } else {
+    isAutoPlaying = true;
+    document.getElementById('btnAuto').textContent = '⏸ 暂停';
+    autoPlayLoop();
+  }
+}
+function autoPlayLoop() {
+  if (!isAutoPlaying) return;
+  if (currentStep >= ANIMATION_STEPS.length - 1) {
+    stopAutoPlay();
+    document.getElementById('btnAuto').textContent = '⏩ 自动播放';
+    return;
+  }
+  nextStep();
+  const speed = parseInt(document.getElementById('speedSlider').value);
+  autoTimer = setTimeout(autoPlayLoop, speed + 200);
+}
+function stopAutoPlay() {
+  isAutoPlaying = false;
+  if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
+}
+
+document.getElementById('speedSlider').addEventListener('input', function() {
+  document.getElementById('speedLabel').textContent = this.value + 'ms';
+});
+document.getElementById('btnStart').addEventListener('click', startAnimation);
+document.getElementById('btnPrev').addEventListener('click', prevStep);
+document.getElementById('btnNext').addEventListener('click', nextStep);
+document.getElementById('btnAuto').addEventListener('click', toggleAutoPlay);
+document.getElementById('btnReset').addEventListener('click', resetState);
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'ArrowRight') { e.preventDefault(); nextStep(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); prevStep(); }
+  else if (e.key === ' ') { e.preventDefault(); toggleAutoPlay(); }
+});
+
+// Init
+buildFlowchart();
+updateButtons();
+</script>
+</body>
+</html>

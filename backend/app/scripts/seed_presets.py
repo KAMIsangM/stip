@@ -13,7 +13,7 @@ import logging
 from pathlib import Path
 
 from app.core.database import SessionLocal
-from app.models import KnowledgeEdge, KnowledgeNode
+from app.models import Course, KnowledgeEdge, KnowledgeNode
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,18 @@ def seed_presets() -> None:
 
     db = SessionLocal()
     try:
+        # Ensure a placeholder Course with id=0 exists for global presets
+        placeholder = db.query(Course).filter(Course.id == 0).first()
+        if placeholder is None:
+            placeholder = Course(
+                id=0,
+                title="__system_presets__",
+                description="Global knowledge graph presets (template)",
+                status="draft",
+            )
+            db.add(placeholder)
+            db.flush()
+
         for preset_file in sorted(PRESETS_DIR.glob("preset_*.json")):
             with open(preset_file, encoding="utf-8") as f:
                 data = json.load(f)

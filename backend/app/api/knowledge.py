@@ -7,7 +7,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models import KnowledgeEdge, KnowledgeNode
+from app.dependencies.auth import get_current_user
+from app.models import Course, KnowledgeEdge, KnowledgeNode, User
 from app.models.enums import NodeType, RelationType
 from app.service.knowledge_service import (
     build_from_preset,
@@ -22,6 +23,18 @@ from app.service.knowledge_service import (
 from app.utils.graph_engine import GraphCycleError
 
 router = APIRouter(tags=["knowledge"])
+
+
+# ---------------------------------------------------------------------------
+# helpers
+# ---------------------------------------------------------------------------
+
+def _verify_course_owner(db: Session, course_id: int, user_id: int) -> None:
+    """Verify the course exists and belongs to the current user."""
+    course = db.query(Course).filter(Course.id == course_id, Course.user_id == user_id).first()
+    if course is None:
+        raise HTTPException(status_code=404, detail=f"课程 {course_id} 不存在")
+
 
 # ---------------------------------------------------------------------------
 # request / response schemas
@@ -70,8 +83,10 @@ class PresetSaveRequest(BaseModel):
 def get_knowledge_graph(
     course_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Return full knowledge graph for visualization."""
+    _verify_course_owner(db, course_id, current_user.id)
     return get_graph_for_visualization(course_id, db)
 
 
@@ -79,8 +94,10 @@ def get_knowledge_graph(
 def get_sorted_knowledge_nodes(
     course_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Return topologically sorted knowledge nodes (prerequisite order)."""
+    _verify_course_owner(db, course_id, current_user.id)
     try:
         return {"nodes": get_sorted_nodes(course_id, db)}
     except GraphCycleError as exc:
@@ -94,12 +111,14 @@ def find_shortest_path(
     target: int = Query(...),
     weighted: bool = Query(default=True),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Find shortest path between two knowledge nodes.
 
     Set *weighted* to False for plain BFS; True (default) enables
     edge-type weights and node-importance bias.
     """
+    _verify_course_owner(db, course_id, current_user.id)
     path = get_shortest_path(course_id, source, target, db, weighted=weighted)
     if path is None:
         return {"path": None, "message": "No path found between the nodes"}
@@ -112,8 +131,10 @@ def recommend_nodes(
     node_id: int = Query(...),
     top_k: int = Query(default=5, ge=1, le=20),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Recommend related nodes for a given node."""
+    _verify_course_owner(db, course_id, current_user.id)
     return {"recommendations": get_recommendations(course_id, node_id, db, top_k=top_k)}
 
 
@@ -146,8 +167,10 @@ def apply_preset(
     course_id: int,
     body: PresetApplyRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Apply a preset knowledge graph to a course."""
+    _verify_course_owner(db, course_id, current_user.id)
     try:
         nodes, edges = build_from_preset(course_id, body.preset_id, db)
         db.commit()
@@ -165,8 +188,10 @@ def save_preset(
     course_id: int,
     body: PresetSaveRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Save the current course knowledge graph as a new preset."""
+    _verify_course_owner(db, course_id, current_user.id)
     try:
         result = save_as_preset(
             course_id=course_id,
@@ -192,8 +217,10 @@ def create_knowledge_node(
     course_id: int,
     body: NodeCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Create a new knowledge node for a course."""
+    _verify_course_owner(db, course_id, current_user.id)
     # validate type
     if body.type not in {e.value for e in NodeType}:
         raise HTTPException(
@@ -227,8 +254,10 @@ def update_knowledge_node(
     node_id: int,
     body: NodeUpdate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Update an existing knowledge node."""
+    _verify_course_owner(db, course_id, current_user.id)
     node = (
         db.query(KnowledgeNode)
         .filter(
@@ -271,8 +300,10 @@ def delete_knowledge_node(
     course_id: int,
     node_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Delete a knowledge node. Connected edges are deleted first (FK ondelete also set)."""
+    _verify_course_owner(db, course_id, current_user.id)
     node = (
         db.query(KnowledgeNode)
         .filter(
@@ -305,8 +336,10 @@ def create_knowledge_edge(
     course_id: int,
     body: EdgeCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Create a new knowledge edge between two nodes."""
+    _verify_course_owner(db, course_id, current_user.id)
     # validate relation_type
     if body.relation_type not in {e.value for e in RelationType}:
         raise HTTPException(
@@ -373,8 +406,10 @@ def update_knowledge_edge(
     edge_id: int,
     body: EdgeUpdate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Update an existing knowledge edge."""
+    _verify_course_owner(db, course_id, current_user.id)
     edge = (
         db.query(KnowledgeEdge)
         .filter(
@@ -410,8 +445,10 @@ def delete_knowledge_edge(
     course_id: int,
     edge_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Delete a knowledge edge."""
+    _verify_course_owner(db, course_id, current_user.id)
     edge = (
         db.query(KnowledgeEdge)
         .filter(

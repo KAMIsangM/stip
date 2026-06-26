@@ -12,17 +12,18 @@ class CourseRepository:
 
     def create(
         self,
+        user_id: int,
         title: str,
         description: str | None = None,
         status: str = "draft",
     ) -> Course:
-        course = Course(title=title, description=description, status=status)
+        course = Course(user_id=user_id, title=title, description=description, status=status)
         self._db.add(course)
         self._db.commit()
         self._db.refresh(course)
         return course
 
-    def get_by_id(self, course_id: int) -> Course | None:
+    def get_by_id(self, course_id: int, user_id: int | None = None) -> Course | None:
         stmt = (
             select(Course)
             .options(
@@ -31,10 +32,23 @@ class CourseRepository:
             )
             .where(Course.id == course_id)
         )
+        if user_id is not None:
+            stmt = stmt.where(Course.user_id == user_id)
         return self._db.scalars(stmt).unique().one_or_none()
 
-    def list_all(self, skip: int = 0, limit: int = 100) -> list[Course]:
+    def get_by_title(self, title: str, user_id: int | None = None) -> Course | None:
+        """Find a course by exact title match (case-insensitive), optionally filtered by user."""
+        from sqlalchemy import func
+
+        stmt = select(Course).where(func.lower(Course.title) == title.lower())
+        if user_id is not None:
+            stmt = stmt.where(Course.user_id == user_id)
+        return self._db.scalars(stmt).one_or_none()
+
+    def list_all(self, skip: int = 0, limit: int = 100, user_id: int | None = None) -> list[Course]:
         stmt = select(Course).order_by(Course.id.desc()).offset(skip).limit(limit)
+        if user_id is not None:
+            stmt = stmt.where(Course.user_id == user_id)
         return list(self._db.scalars(stmt).all())
 
     def update(
@@ -59,14 +73,28 @@ class CourseRepository:
         return course
 
     def delete(self, course_id: int) -> bool:
+        import time
+
         course = self.get_by_id(course_id)
         if course is None:
             return False
         # 手动级联删除子记录，避免外键约束问题
         self.delete_chapters_by_course_id(course_id)
         self._db.delete(course)
-        self._db.commit()
-        return True
+        # SQLite 并发写时可能遇到锁，重试 3 次
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self._db.commit()
+                return True
+            except Exception:
+                if attempt < max_retries - 1:
+                    time.sleep(0.5 * (attempt + 1))
+                    self._db.rollback()
+                else:
+                    self._db.rollback()
+                    raise
+        return False
 
     def create_chapter(
         self,
@@ -95,8 +123,22 @@ class CourseRepository:
         return list(self._db.scalars(stmt).all())
 
     def delete_chapters_by_course_id(self, course_id: int) -> int:
+        import time
+
         chapters = self.get_chapters_by_course_id(course_id)
         for chapter in chapters:
             self._db.delete(chapter)
-        self._db.commit()
-        return len(chapters)
+        # SQLite 并发写时可能遇到锁，重试 3 次
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self._db.commit()
+                return len(chapters)
+            except Exception:
+                if attempt < max_retries - 1:
+                    time.sleep(0.5 * (attempt + 1))
+                    self._db.rollback()
+                else:
+                    self._db.rollback()
+                    raise
+        return 0
