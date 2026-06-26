@@ -31,3 +31,4 @@ desktop.ini
 # Generated doc extracts (source: docs/*.docx)
 docs/_extracted/
 .cursor/
+.codebuddy/
